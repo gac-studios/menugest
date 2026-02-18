@@ -29,6 +29,13 @@ import Checkout from "./pages/public/Checkout";
 
 const queryClient = new QueryClient();
 
+function ProGate() {
+  const { isProEnabled, loading } = useTenant();
+  if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (isProEnabled) return <div className="text-foreground p-6">Módulo Pro — em breve</div>;
+  return <ProModule />;
+}
+
 function ProtectedRoute({ children, skipTenantCheck }: { children: React.ReactNode; skipTenantCheck?: boolean }) {
   const { user, loading } = useAuth();
   const { hasTenant, loading: tenantLoading } = useTenant();
@@ -87,15 +94,15 @@ const App = () => (
                 <Route path="/settings/business-hours" element={<Settings />} />
                 <Route path="/settings/users" element={<UsersPage />} />
 
-                {/* Pro modules */}
-                <Route path="/inventory" element={<ProModule />} />
-                <Route path="/inventory/*" element={<ProModule />} />
-                <Route path="/purchases" element={<ProModule />} />
-                <Route path="/purchases/*" element={<ProModule />} />
-                <Route path="/sales" element={<ProModule />} />
-                <Route path="/sales/*" element={<ProModule />} />
-                <Route path="/suppliers" element={<ProModule />} />
-                <Route path="/reports/financial" element={<ProModule />} />
+                {/* Pro modules - conditionally rendered */}
+                <Route path="/inventory" element={<ProGate />} />
+                <Route path="/inventory/*" element={<ProGate />} />
+                <Route path="/purchases" element={<ProGate />} />
+                <Route path="/purchases/*" element={<ProGate />} />
+                <Route path="/sales" element={<ProGate />} />
+                <Route path="/sales/*" element={<ProGate />} />
+                <Route path="/suppliers" element={<ProGate />} />
+                <Route path="/reports/financial" element={<ProGate />} />
               </Route>
 
               {/* Public menu (tenant) */}

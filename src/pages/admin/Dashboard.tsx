@@ -21,17 +21,14 @@ export default function Dashboard() {
 
   // Debug logs
   useEffect(() => {
-    if (tenant) {
-      console.log('🔍 Dashboard debug:', {
-        tenant: tenant.name,
-        plan: tenant.plan,
-        subscription_status: tenant.subscription_status,
-        is_active: tenant.is_active,
-        hasTenant: true,
-        hasActivePlan,
-        isProEnabled,
-      });
-    }
+    console.log('🔍 Dashboard debug:', {
+      tenant,
+      plan: tenant?.plan,
+      subscription_status: tenant?.subscription_status,
+      is_active: tenant?.is_active,
+      hasActivePlan,
+      isProEnabled,
+    });
   }, [tenant, hasActivePlan, isProEnabled]);
 
   return (

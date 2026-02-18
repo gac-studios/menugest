@@ -62,10 +62,8 @@ export function useTenant(): UseTenantResult {
   }, [user]);
 
   const hasTenant = !!tenantUser;
-  const planLower = (tenant?.plan ?? '').toLowerCase();
-  const statusLower = (tenant?.subscription_status ?? '').toLowerCase();
-  const hasActivePlan = tenant?.is_active === true && (statusLower === 'active' || statusLower === '');
-  const isProEnabled = planLower === 'pro' && statusLower === 'active' && tenant?.is_active === true;
+  const hasActivePlan = tenant?.subscription_status === 'active' && tenant?.is_active === true;
+  const isProEnabled = tenant?.plan === 'pro' && hasActivePlan;
 
   return {
     tenant,
