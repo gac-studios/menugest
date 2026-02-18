@@ -63,7 +63,7 @@ export default function Index() {
                   </Button>
                 </Link>
                 <Link to="/plans">
-                  <Button size="lg" variant="outline" className="text-base px-8 border-white/40 text-white bg-white/10 hover:bg-white/20">
+                  <Button size="lg" variant="outline" className="text-base px-8 border-white/40 text-white bg-white/10 hover:bg-white/20 focus:ring-2 focus:ring-white/50">
                     Ver Planos
                   </Button>
                 </Link>
