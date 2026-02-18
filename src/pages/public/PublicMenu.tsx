@@ -1,46 +1,75 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Search, ShoppingCart, UtensilsCrossed } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import MenuCard from '@/components/public/MenuCard';
 import { useCart } from '@/contexts/CartContext';
 import { Link } from 'react-router-dom';
-import { MenuItem } from '@/lib/types';
+import { MenuItem, MenuCategory as MenuCategoryType } from '@/lib/types';
 import { motion } from 'framer-motion';
-
-// Mock data for demo
-const mockCategories = [
-  { id: '1', name: 'Hambúrgueres' },
-  { id: '2', name: 'Acompanhamentos' },
-  { id: '3', name: 'Bebidas' },
-  { id: '4', name: 'Sobremesas' },
-];
-
-const mockItems: MenuItem[] = [
-  { id: '1', tenant_id: '1', category_id: '1', name: 'Smash Burger Clássico', slug: 'smash-classico', description: 'Pão brioche, blend 150g, queijo cheddar, alface, tomate e molho especial', price: 28.90, image_url: '', is_available: true, is_promotion: false, sort_order: 1 },
-  { id: '2', tenant_id: '1', category_id: '1', name: 'Burger Bacon Supreme', slug: 'bacon-supreme', description: 'Duplo blend, bacon crocante, queijo, cebola caramelizada e molho BBQ', price: 35.90, original_price: 42.90, image_url: '', is_available: true, is_promotion: true, promotion_label: 'OFERTA', sort_order: 2 },
-  { id: '3', tenant_id: '1', category_id: '1', name: 'Veggie Burger', slug: 'veggie', description: 'Hambúrguer de grão de bico com rúcula e molho tahine', price: 29.90, image_url: '', is_available: true, is_promotion: false, sort_order: 3 },
-  { id: '4', tenant_id: '1', category_id: '2', name: 'Batata Frita Grande', slug: 'batata-g', description: 'Porção generosa com sal e orégano', price: 18.90, image_url: '', is_available: true, is_promotion: false, sort_order: 4 },
-  { id: '5', tenant_id: '1', category_id: '2', name: 'Onion Rings', slug: 'onion-rings', description: 'Anéis de cebola empanados e crocantes', price: 16.90, image_url: '', is_available: true, is_promotion: true, promotion_label: '-20%', original_price: 21.90, sort_order: 5 },
-  { id: '6', tenant_id: '1', category_id: '3', name: 'Milkshake Oreo', slug: 'milkshake-oreo', description: 'Sorvete de baunilha com Oreo', price: 22.90, image_url: '', is_available: true, is_promotion: false, sort_order: 6 },
-  { id: '7', tenant_id: '1', category_id: '3', name: 'Suco Natural', slug: 'suco', description: 'Laranja, limão ou abacaxi', price: 12.90, image_url: '', is_available: true, is_promotion: false, sort_order: 7 },
-  { id: '8', tenant_id: '1', category_id: '4', name: 'Brownie com Sorvete', slug: 'brownie', description: 'Brownie quentinho com sorvete de creme', price: 19.90, image_url: '', is_available: false, is_promotion: false, sort_order: 8 },
-];
-
-const tenantName = 'Burger House';
+import { supabase } from '@/lib/supabase';
 
 export default function PublicMenu() {
+  const { slug } = useParams<{ slug: string }>();
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; is_active: boolean } | null>(null);
+  const [categories, setCategories] = useState<MenuCategoryType[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loadingTenant, setLoadingTenant] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const { itemCount, total } = useCart();
 
-  const promotions = useMemo(() => mockItems.filter(i => i.is_promotion && i.is_available), []);
+  useEffect(() => {
+    const loadTenant = async () => {
+      if (!slug) { setNotFound(true); setLoadingTenant(false); return; }
+      const { data: t } = await supabase
+        .from('tenants')
+        .select('id, name, is_active')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (!t || !t.is_active) { setNotFound(true); setLoadingTenant(false); return; }
+      setTenantData(t);
+
+      const [catRes, itemsRes] = await Promise.all([
+        supabase.from('menu_categories').select('*').eq('tenant_id', t.id).eq('is_active', true).order('sort_order'),
+        supabase.from('menu_items').select('*').eq('tenant_id', t.id).eq('is_available', true).order('sort_order'),
+      ]);
+      setCategories(catRes.data || []);
+      setMenuItems(itemsRes.data || []);
+      setLoadingTenant(false);
+    };
+    loadTenant();
+  }, [slug]);
+
+  const promotions = useMemo(() => menuItems.filter(i => i.is_promotion && i.is_available), [menuItems]);
   const filtered = useMemo(() => {
-    let items = mockItems;
+    let items = menuItems;
     if (search) items = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
     if (activeCategory) items = items.filter(i => i.category_id === activeCategory);
     return items.filter(i => !i.is_promotion || !activeCategory);
-  }, [search, activeCategory]);
+  }, [search, activeCategory, menuItems]);
+
+  if (loadingTenant) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (notFound) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-foreground mb-2">404</h1>
+        <p className="text-muted-foreground">Cardápio não encontrado</p>
+        <Link to="/" className="text-primary mt-4 inline-block hover:underline">Voltar ao início</Link>
+      </div>
+    </div>
+  );
+
+  const tenantName = tenantData?.name || 'Menu';
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -79,7 +108,7 @@ export default function PublicMenu() {
           >
             Todos
           </button>
-          {mockCategories.map(c => (
+          {categories.map(c => (
             <button
               key={c.id}
               onClick={() => setActiveCategory(c.id)}
@@ -109,7 +138,7 @@ export default function PublicMenu() {
         )}
 
         {/* Menu Items by Category */}
-        {mockCategories.filter(c => !activeCategory || c.id === activeCategory).map(cat => {
+        {categories.filter(c => !activeCategory || c.id === activeCategory).map(cat => {
           const catItems = filtered.filter(i => i.category_id === cat.id && (!i.is_promotion || activeCategory));
           if (catItems.length === 0) return null;
           return (

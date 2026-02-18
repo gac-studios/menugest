@@ -38,11 +38,13 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground text-sm">Visão geral do seu negócio</p>
         </div>
-        <Link to="/plans">
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <ExternalLink size={14} /> Ver cardápio público
-          </Button>
-        </Link>
+        {tenant?.slug && (
+          <Link to={`/menu/${tenant.slug}`} target="_blank">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <ExternalLink size={14} /> Ver cardápio público
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* No active plan banner */}

@@ -22,19 +22,15 @@ import MenuCategories from "./pages/admin/MenuCategories";
 import MenuItems from "./pages/admin/MenuItems";
 import Promotions from "./pages/admin/Promotions";
 import Settings from "./pages/admin/Settings";
-import ProModule from "./pages/admin/ProModule";
 import UsersPage from "./pages/admin/UsersPage";
+import InventoryPage from "./pages/admin/InventoryPage";
+import PurchasesPage from "./pages/admin/PurchasesPage";
+import SalesPage from "./pages/admin/SalesPage";
+import FinancialPage from "./pages/admin/FinancialPage";
 import PublicMenu from "./pages/public/PublicMenu";
 import Checkout from "./pages/public/Checkout";
 
 const queryClient = new QueryClient();
-
-function ProGate() {
-  const { isProEnabled, loading } = useTenant();
-  if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  if (isProEnabled) return <div className="text-foreground p-6">Módulo Pro — em breve</div>;
-  return <ProModule />;
-}
 
 function ProtectedRoute({ children, skipTenantCheck }: { children: React.ReactNode; skipTenantCheck?: boolean }) {
   const { user, loading } = useAuth();
@@ -94,18 +90,15 @@ const App = () => (
                 <Route path="/settings/business-hours" element={<Settings />} />
                 <Route path="/settings/users" element={<UsersPage />} />
 
-                {/* Pro modules - conditionally rendered */}
-                <Route path="/inventory" element={<ProGate />} />
-                <Route path="/inventory/*" element={<ProGate />} />
-                <Route path="/purchases" element={<ProGate />} />
-                <Route path="/purchases/*" element={<ProGate />} />
-                <Route path="/sales" element={<ProGate />} />
-                <Route path="/sales/*" element={<ProGate />} />
-                <Route path="/suppliers" element={<ProGate />} />
-                <Route path="/reports/financial" element={<ProGate />} />
+                {/* Pro modules */}
+                <Route path="/inventory" element={<InventoryPage />} />
+                <Route path="/purchases" element={<PurchasesPage />} />
+                <Route path="/sales" element={<SalesPage />} />
+                <Route path="/reports/financial" element={<FinancialPage />} />
               </Route>
 
-              {/* Public menu (tenant) */}
+              {/* Public menu (tenant slug) */}
+              <Route path="/menu/:slug" element={<PublicMenu />} />
               <Route path="/menu" element={<PublicMenu />} />
               <Route path="/checkout" element={<Checkout />} />
 
