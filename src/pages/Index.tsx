@@ -130,7 +130,7 @@ export default function Index() {
               </Button>
             </Link>
             <a href="https://wa.me/5534932466279?text=Olá, quero saber mais sobre o MenuGest" target="_blank" rel="noopener">
-              <Button size="lg" variant="outline" className="text-base px-8 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10">
+              <Button size="lg" variant="outline" className="text-base px-8 border-white/40 text-white bg-white/10 hover:bg-white/20 focus:ring-2 focus:ring-white/50">
                 Falar no WhatsApp
               </Button>
             </a>

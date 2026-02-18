@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/hooks/useTenant';
 import {
   LayoutDashboard, UtensilsCrossed, Tag, Settings, Package, ShoppingCart,
   DollarSign, BarChart3, Users, Menu, X, LogOut, Crown, ChevronDown
@@ -36,9 +37,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
-
-  // TODO: get from tenant context
-  const tenantPlan = 'basic';
+  const { isProEnabled } = useTenant();
 
   const toggleExpanded = (label: string) => {
     setExpandedItems(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
@@ -72,7 +71,7 @@ export default function AdminLayout() {
           {/* Nav */}
           <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             {navItems.map((item) => {
-              const locked = item.pro && tenantPlan === 'basic';
+              const locked = item.pro && !isProEnabled;
               return (
                 <div key={item.label}>
                   <button
@@ -123,7 +122,7 @@ export default function AdminLayout() {
           </nav>
 
           {/* Upgrade banner */}
-          {tenantPlan === 'basic' && (
+          {!isProEnabled && (
             <div className="mx-3 mb-3 p-4 rounded-lg gradient-pro">
               <p className="text-sm font-semibold text-pro-foreground">Plano Pro</p>
               <p className="text-xs text-pro-foreground/80 mt-1">Desbloqueie gestão completa</p>
