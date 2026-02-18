@@ -97,35 +97,33 @@ export default function Onboarding() {
     if (!user) return;
     setLoading(true);
     try {
-      // Create tenant
-      const { data: tenant, error: tenantError } = await supabase
-        .from('tenants')
-        .insert({
-          name,
-          slug,
-          phone_whatsapp: phone,
-          description: description || null,
-          plan: 'basic',
-          is_active: true,
-          hide_unavailable: false,
-        })
-        .select()
-        .single();
+      // Check session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({ title: 'Sessão expirada', description: 'Faça login novamente.', variant: 'destructive' });
+        navigate('/login');
+        return;
+      }
 
-      if (tenantError) throw tenantError;
+      // Debug logs
+      const userResult = await supabase.auth.getUser();
+      console.log('user', userResult.data.user?.id);
+      console.log('hasToken', !!session?.access_token);
 
-      // Create tenant_user as owner
-      const { error: userError } = await supabase
-        .from('tenant_users')
-        .insert({
-          user_id: user.id,
-          tenant_id: tenant.id,
-          role: 'owner',
-        });
+      // Call RPC to create tenant + tenant_user atomically
+      const { data: tenantId, error } = await supabase.rpc('create_tenant', {
+        p_name: name,
+        p_slug: slug,
+        p_phone_whatsapp: phone,
+        p_plan: plan,
+        p_description: description || null,
+      });
 
-      if (userError) throw userError;
+      if (error) throw error;
 
-      // Upsert profile
+      console.log('tenantId', tenantId);
+
+      // Upsert profile (non-critical)
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
