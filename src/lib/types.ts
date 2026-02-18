@@ -7,6 +7,7 @@ export interface Tenant {
   name: string;
   slug: string;
   plan: PlanType;
+  subscription_status?: string;
   is_active: boolean;
   phone_whatsapp: string;
   logo_url?: string;

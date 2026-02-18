@@ -1,18 +1,38 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ShoppingCart, TrendingUp, Package, DollarSign, Crown, ExternalLink } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Package, DollarSign, Crown, ExternalLink, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { useTenant } from '@/hooks/useTenant';
 
 const stats = [
   { label: 'Pedidos no mês', value: '0', icon: <ShoppingCart size={20} />, color: 'text-primary' },
-  { label: 'Itens no cardápio', value: '0', icon: <Package size={20} />, color: 'text-success' },
-  { label: 'Categorias', value: '0', icon: <TrendingUp size={20} />, color: 'text-warning' },
-  { label: 'Promoções ativas', value: '0', icon: <DollarSign size={20} />, color: 'text-pro' },
+  { label: 'Itens no cardápio', value: '0', icon: <Package size={20} />, color: 'text-green-500' },
+  { label: 'Categorias', value: '0', icon: <TrendingUp size={20} />, color: 'text-yellow-500' },
+  { label: 'Promoções ativas', value: '0', icon: <DollarSign size={20} />, color: 'text-primary' },
 ];
 
 export default function Dashboard() {
-  // TODO: fetch real data from Supabase
-  const tenantPlan = 'basic';
+  const { tenant, hasActivePlan, isProEnabled, refetch } = useTenant();
+
+  useEffect(() => {
+    refetch();
+  }, []);
+
+  // Debug logs
+  useEffect(() => {
+    if (tenant) {
+      console.log('🔍 Dashboard debug:', {
+        tenant: tenant.name,
+        plan: tenant.plan,
+        subscription_status: tenant.subscription_status,
+        is_active: tenant.is_active,
+        hasTenant: true,
+        hasActivePlan,
+        isProEnabled,
+      });
+    }
+  }, [tenant, hasActivePlan, isProEnabled]);
 
   return (
     <div className="space-y-6">
@@ -28,8 +48,28 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Plan banner */}
-      {tenantPlan === 'basic' && (
+      {/* No active plan banner */}
+      {!hasActivePlan && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl p-5 flex items-center justify-between bg-yellow-500/10 border border-yellow-500/30"
+        >
+          <div className="flex items-center gap-3">
+            <AlertCircle size={24} className="text-yellow-600" />
+            <div>
+              <p className="font-semibold text-foreground">Assine um plano para liberar recursos</p>
+              <p className="text-sm text-muted-foreground">Escolha um plano para começar a usar o MenuGest</p>
+            </div>
+          </div>
+          <Link to="/plans">
+            <Button size="sm">Ver Planos</Button>
+          </Link>
+        </motion.div>
+      )}
+
+      {/* Pro upgrade banner - only show when has active basic plan */}
+      {hasActivePlan && !isProEnabled && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
