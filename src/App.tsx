@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { useTenant } from "@/hooks/useTenant";
 
 // Pages
 import Index from "./pages/Index";
@@ -28,10 +29,23 @@ import Checkout from "./pages/public/Checkout";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, skipTenantCheck }: { children: React.ReactNode; skipTenantCheck?: boolean }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  const { hasTenant, loading: tenantLoading } = useTenant();
+
+  if (loading || tenantLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (!skipTenantCheck && !hasTenant) return <Navigate to="/onboarding" replace />;
+  return <>{children}</>;
+}
+
+function OnboardingRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const { hasTenant, loading: tenantLoading } = useTenant();
+
+  if (loading || tenantLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (hasTenant) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -55,7 +69,7 @@ const App = () => (
               <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Onboarding */}
-              <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+              <Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
 
               {/* Admin */}
               <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
