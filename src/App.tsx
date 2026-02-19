@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { useTenant } from "@/hooks/useTenant";
+import { useAppAdmin } from "@/hooks/useAppAdmin";
 
 // Pages
 import Index from "./pages/Index";
@@ -27,6 +28,7 @@ import InventoryPage from "./pages/admin/InventoryPage";
 import PurchasesPage from "./pages/admin/PurchasesPage";
 import SalesPage from "./pages/admin/SalesPage";
 import FinancialPage from "./pages/admin/FinancialPage";
+import SuperAdminClients from "./pages/admin/SuperAdminClients";
 import PublicMenu from "./pages/public/PublicMenu";
 import Checkout from "./pages/public/Checkout";
 
@@ -49,6 +51,16 @@ function OnboardingRoute({ children }: { children: React.ReactNode }) {
   if (loading || tenantLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (!user) return <Navigate to="/login" replace />;
   if (hasTenant) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const { isAppAdmin, loading: adminLoading } = useAppAdmin();
+
+  if (loading || adminLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAppAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -95,6 +107,9 @@ const App = () => (
                 <Route path="/purchases" element={<PurchasesPage />} />
                 <Route path="/sales" element={<SalesPage />} />
                 <Route path="/reports/financial" element={<FinancialPage />} />
+
+                {/* Super Admin (protected by SuperAdminRoute rendered inside) */}
+                <Route path="/superadmin/clients" element={<SuperAdminRoute><SuperAdminClients /></SuperAdminRoute>} />
               </Route>
 
               {/* Public menu (tenant slug) */}
