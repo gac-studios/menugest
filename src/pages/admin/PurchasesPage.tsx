@@ -58,20 +58,30 @@ export default function PurchasesPage() {
         .order('name'),
     ]);
 
-    if (purchasesRes.error) console.error('Error fetching purchases:', purchasesRes.error);
-    if (itemsRes.error) console.error('Error fetching inventory items:', itemsRes.error);
+    if (purchasesRes.error) {
+      console.error('Error fetching purchases:', purchasesRes.error);
+      toast({ title: 'Erro ao carregar compras', description: purchasesRes.error.message, variant: 'destructive' });
+    }
+    if (itemsRes.error) {
+      console.error('Error fetching inventory items:', itemsRes.error);
+      toast({ title: 'Erro ao carregar itens do estoque', description: itemsRes.error.message, variant: 'destructive' });
+    }
 
     setPurchases(purchasesRes.data || []);
     setInventoryItems(itemsRes.data || []);
     setLoading(false);
   };
 
-  useEffect(() => { if (isProEnabled) fetchData(); }, [tenant, isProEnabled]);
+  useEffect(() => { if (tenant && isProEnabled) fetchData(); }, [tenant?.id, isProEnabled]);
 
   if (!isProEnabled) return <ProModule />;
 
   const addLine = () => {
-    if (inventoryItems.length === 0) { toast({ title: 'Cadastre itens de estoque primeiro', variant: 'destructive' }); return; }
+    if (loading) { toast({ title: 'Aguarde o carregamento dos itens', variant: 'destructive' }); return; }
+    if (inventoryItems.length === 0) {
+      toast({ title: 'Nenhum item de estoque encontrado', description: 'Cadastre itens em Estoque > Itens antes de criar uma compra.', variant: 'destructive' });
+      return;
+    }
     setLines(l => [...l, { item_id: inventoryItems[0].id, item_name: inventoryItems[0].name, qty: 1, unit_cost: 0 }]);
   };
 

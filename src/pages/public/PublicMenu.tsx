@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Search, ShoppingCart, UtensilsCrossed, Tag } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import MenuCard from '@/components/public/MenuCard';
 import { useCart } from '@/contexts/CartContext';
@@ -12,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; logo_url?: string; is_active: boolean } | null>(null);
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; logo_url?: string | null; cover_url?: string | null; is_active: boolean } | null>(null);
   const [categories, setCategories] = useState<MenuCategoryType[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [activePromos, setActivePromos] = useState<Promotion[]>([]);
@@ -28,7 +27,7 @@ export default function PublicMenu() {
       if (!slug) { setNotFound(true); setLoadingTenant(false); return; }
       const { data: t } = await supabase
         .from('tenants')
-        .select('id, name, logo_url, is_active')
+        .select('id, name, logo_url, cover_url, is_active')
         .eq('slug', slug)
         .maybeSingle();
 
@@ -76,19 +75,35 @@ export default function PublicMenu() {
   );
 
   const tenantName = tenantData?.name || 'Menu';
+  const logoUrl = tenantData?.logo_url || null;
+  const coverUrl = tenantData?.cover_url || null;
 
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
-      <div className="gradient-hero text-primary-foreground px-4 pt-8 pb-6">
-        <div className="max-w-lg mx-auto">
+      <div
+        className="text-primary-foreground px-4 pt-8 pb-6 relative"
+        style={coverUrl
+          ? { backgroundImage: `url(${coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : undefined
+        }
+      >
+        {/* overlay for readability when cover image exists */}
+        {coverUrl && <div className="absolute inset-0 bg-black/50" />}
+        <div className={`max-w-lg mx-auto relative z-10 ${!coverUrl ? 'gradient-hero' : ''}`}>
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-              <UtensilsCrossed size={24} className="text-primary-foreground" />
+            <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shrink-0 bg-white/10 border border-white/20">
+              {logoUrl ? (
+                <img src={logoUrl} alt={tenantName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full gradient-primary flex items-center justify-center">
+                  <UtensilsCrossed size={24} className="text-primary-foreground" />
+                </div>
+              )}
             </div>
             <div>
               <h1 className="text-xl font-bold">{tenantName}</h1>
-              <p className="text-sm text-primary-foreground/60">Aberto agora • Pedido mínimo R$ 15,00</p>
+              <p className="text-sm text-primary-foreground/80">Aberto agora • Pedido mínimo R$ 15,00</p>
             </div>
           </div>
           <div className="relative">
@@ -97,7 +112,7 @@ export default function PublicMenu() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar no cardápio..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-primary-foreground/10 text-primary-foreground placeholder:text-primary-foreground/40 border-0 outline-none text-sm"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-black/20 text-primary-foreground placeholder:text-primary-foreground/50 border border-white/10 outline-none text-sm"
             />
           </div>
         </div>
