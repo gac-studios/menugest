@@ -38,8 +38,10 @@ export interface MenuCategory {
   tenant_id: string;
   name: string;
   description?: string;
+  image_url?: string;
   sort_order: number;
   is_active: boolean;
+  created_at?: string;
 }
 
 export interface MenuItem {
@@ -47,15 +49,16 @@ export interface MenuItem {
   tenant_id: string;
   category_id: string;
   name: string;
-  slug: string;
   description?: string;
+  /** preço em reais (numeric no banco) */
   price: number;
   original_price?: number;
   image_url?: string;
   is_available: boolean;
+  is_active: boolean;
   is_promotion: boolean;
-  promotion_label?: string;
   sort_order: number;
+  created_at?: string;
 }
 
 export interface Promotion {
