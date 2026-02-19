@@ -1,35 +1,98 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShoppingCart, TrendingUp, Package, DollarSign, Crown, ExternalLink, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { useTenant } from '@/hooks/useTenant';
+import { supabase } from '@/lib/supabase';
 
-const stats = [
-  { label: 'Pedidos no mês', value: '0', icon: <ShoppingCart size={20} />, color: 'text-primary' },
-  { label: 'Itens no cardápio', value: '0', icon: <Package size={20} />, color: 'text-green-500' },
-  { label: 'Categorias', value: '0', icon: <TrendingUp size={20} />, color: 'text-yellow-500' },
-  { label: 'Promoções ativas', value: '0', icon: <DollarSign size={20} />, color: 'text-primary' },
-];
+interface DashboardStats {
+  menuItems: number;
+  categories: number;
+  activePromotions: number;
+}
 
 export default function Dashboard() {
   const { tenant, hasActivePlan, isProEnabled, refetch } = useTenant();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
     refetch();
   }, []);
 
-  // Debug logs
   useEffect(() => {
-    console.log('🔍 Dashboard debug:', {
-      tenant,
-      plan: tenant?.plan,
-      subscription_status: tenant?.subscription_status,
-      is_active: tenant?.is_active,
-      hasActivePlan,
-      isProEnabled,
-    });
-  }, [tenant, hasActivePlan, isProEnabled]);
+    if (!tenant?.id) return;
+    fetchStats(tenant.id);
+  }, [tenant?.id]);
+
+  const fetchStats = async (tenantId: string) => {
+    setLoadingStats(true);
+    try {
+      const now = new Date().toISOString();
+
+      const [itemsRes, catsRes, promoRes] = await Promise.all([
+        supabase
+          .from('menu_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true),
+
+        supabase
+          .from('menu_categories')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true),
+
+        supabase
+          .from('promotions')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .or(`starts_at.is.null,starts_at.lte.${now}`)
+          .or(`ends_at.is.null,ends_at.gte.${now}`),
+      ]);
+
+      setStats({
+        menuItems: itemsRes.count ?? 0,
+        categories: catsRes.count ?? 0,
+        activePromotions: promoRes.count ?? 0,
+      });
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+      setStats({ menuItems: 0, categories: 0, activePromotions: 0 });
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const statCards = [
+    {
+      label: 'Itens no cardápio',
+      value: stats?.menuItems ?? 0,
+      icon: <Package size={20} />,
+      color: 'text-green-500',
+    },
+    {
+      label: 'Categorias',
+      value: stats?.categories ?? 0,
+      icon: <TrendingUp size={20} />,
+      color: 'text-yellow-500',
+    },
+    {
+      label: 'Promoções ativas',
+      value: stats?.activePromotions ?? 0,
+      icon: <DollarSign size={20} />,
+      color: 'text-primary',
+    },
+    {
+      label: 'Pedidos no mês',
+      value: 0,
+      icon: <ShoppingCart size={20} />,
+      color: 'text-primary',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -89,7 +152,7 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s, i) => (
+        {statCards.map((s, i) => (
           <motion.div
             key={s.label}
             initial={{ opacity: 0, y: 20 }}
@@ -98,7 +161,11 @@ export default function Dashboard() {
             className="bg-card rounded-xl p-5 shadow-card border border-border/50"
           >
             <div className={`${s.color} mb-3`}>{s.icon}</div>
-            <p className="text-2xl font-bold text-foreground">{s.value}</p>
+            {loadingStats ? (
+              <Skeleton className="h-8 w-16 mb-1" />
+            ) : (
+              <p className="text-2xl font-bold text-foreground">{s.value}</p>
+            )}
             <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
           </motion.div>
         ))}
