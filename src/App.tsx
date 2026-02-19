@@ -79,8 +79,8 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/menu/categories" element={<MenuCategories />} />
                 <Route path="/menu/items" element={<MenuItems />} />
-                <Route path="/menu/items/new" element={<div className="text-foreground">Formulário de novo item — em breve</div>} />
-                <Route path="/menu/items/:id/edit" element={<div className="text-foreground">Editar item — em breve</div>} />
+                <Route path="/menu/items/new" element={<MenuItems />} />
+                <Route path="/menu/items/:id/edit" element={<MenuItems />} />
                 <Route path="/promotions" element={<Promotions />} />
                 <Route path="/promotions/new" element={<div className="text-foreground">Nova promoção — em breve</div>} />
                 <Route path="/promotions/:id/edit" element={<div className="text-foreground">Editar promoção — em breve</div>} />
