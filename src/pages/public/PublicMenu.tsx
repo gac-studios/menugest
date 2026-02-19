@@ -1,20 +1,21 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, ShoppingCart, UtensilsCrossed } from 'lucide-react';
+import { Search, ShoppingCart, UtensilsCrossed, Tag } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import MenuCard from '@/components/public/MenuCard';
 import { useCart } from '@/contexts/CartContext';
 import { Link } from 'react-router-dom';
-import { MenuItem, MenuCategory as MenuCategoryType } from '@/lib/types';
+import { MenuItem, MenuCategory as MenuCategoryType, Promotion } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; is_active: boolean } | null>(null);
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; logo_url?: string; is_active: boolean } | null>(null);
   const [categories, setCategories] = useState<MenuCategoryType[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [activePromos, setActivePromos] = useState<Promotion[]>([]);
   const [loadingTenant, setLoadingTenant] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -27,25 +28,30 @@ export default function PublicMenu() {
       if (!slug) { setNotFound(true); setLoadingTenant(false); return; }
       const { data: t } = await supabase
         .from('tenants')
-        .select('id, name, is_active')
+        .select('id, name, logo_url, is_active')
         .eq('slug', slug)
         .maybeSingle();
 
       if (!t || !t.is_active) { setNotFound(true); setLoadingTenant(false); return; }
       setTenantData(t);
 
-      const [catRes, itemsRes] = await Promise.all([
+      const now = new Date().toISOString();
+      const [catRes, itemsRes, promosRes] = await Promise.all([
         supabase.from('menu_categories').select('*').eq('tenant_id', t.id).eq('is_active', true).order('sort_order'),
         supabase.from('menu_items').select('*').eq('tenant_id', t.id).eq('is_available', true).order('sort_order'),
+        supabase.from('promotions').select('*').eq('tenant_id', t.id).eq('is_active', true)
+          .or(`starts_at.is.null,starts_at.lte.${now}`)
+          .or(`ends_at.is.null,ends_at.gte.${now}`),
       ]);
       setCategories(catRes.data || []);
       setMenuItems(itemsRes.data || []);
+      setActivePromos(promosRes.data || []);
       setLoadingTenant(false);
     };
     loadTenant();
   }, [slug]);
 
-  const promotions = useMemo(() => menuItems.filter(i => i.is_promotion && i.is_available), [menuItems]);
+  const itemPromotions = useMemo(() => menuItems.filter(i => i.is_promotion && i.is_available), [menuItems]);
   const filtered = useMemo(() => {
     let items = menuItems;
     if (search) items = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
@@ -121,14 +127,38 @@ export default function PublicMenu() {
           ))}
         </div>
 
-        {/* Promotions */}
-        {!activeCategory && !search && promotions.length > 0 && (
+        {/* Campaign Promotions (from promotions table) */}
+        {!activeCategory && !search && activePromos.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
               🔥 Promoções
             </h2>
             <div className="space-y-2">
-              {promotions.map(item => (
+              {activePromos.map(promo => (
+                <motion.div key={promo.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                  <div className="flex items-start gap-3 p-4 bg-card rounded-xl border border-border/50 shadow-card">
+                    <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center shrink-0 mt-0.5">
+                      <Tag size={16} className="text-primary-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">{promo.title}</h3>
+                      {promo.description && <p className="text-sm text-muted-foreground mt-0.5">{promo.description}</p>}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Item Promotions (menu_items with is_promotion=true) */}
+        {!activeCategory && !search && itemPromotions.length > 0 && (
+          <div className="mb-6">
+            {activePromos.length === 0 && (
+              <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">🔥 Em Promoção</h2>
+            )}
+            <div className="space-y-2">
+              {itemPromotions.map(item => (
                 <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                   <MenuCard item={item} />
                 </motion.div>

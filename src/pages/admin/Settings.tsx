@@ -3,17 +3,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useState, useEffect, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Loader2, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/useTenant';
 import { useToast } from '@/hooks/use-toast';
 
-/** Converts a string to a URL-friendly slug (removes accents, lowercases, replaces spaces with hyphens) */
 function toSlug(value: string): string {
   return value
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -28,29 +27,110 @@ interface CompanyForm {
   address: string;
 }
 
-interface WhatsAppForm {
-  phone_whatsapp: string;
+// ─── Image Upload Zone ────────────────────────────────────────────────────────
+interface ImageUploadZoneProps {
+  label: string;
+  currentUrl?: string | null;
+  onUpload: (file: File) => Promise<void>;
+  onRemove: () => void;
+  uploading: boolean;
+  accept?: string;
 }
 
+function ImageUploadZone({ label, currentUrl, onUpload, onRemove, uploading, accept = 'image/*' }: ImageUploadZoneProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const handleFile = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    onUpload(file);
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }, [onUpload]);
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragging(true); };
+  const handleDragLeave = () => setDragging(false);
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="mt-1.5 relative">
+        {currentUrl ? (
+          <div className="relative rounded-xl overflow-hidden border border-border">
+            <img src={currentUrl} alt={label} className="w-full h-40 object-cover" />
+            <button
+              onClick={onRemove}
+              className="absolute top-2 right-2 bg-background/80 backdrop-blur rounded-full p-1 hover:bg-destructive hover:text-destructive-foreground transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <div
+            onClick={() => !uploading && inputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+              dragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/30'
+            } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+          >
+            {uploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 size={24} className="animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Enviando...</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <Upload size={18} className="text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Arraste uma imagem ou <span className="text-primary font-medium">clique para enviar</span>
+                </p>
+                <p className="text-xs text-muted-foreground/60">PNG, JPG, WEBP até 5MB</p>
+              </div>
+            )}
+          </div>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Settings Component ──────────────────────────────────────────────────
 export default function Settings() {
   const { tenant, refetch } = useTenant();
   const { toast } = useToast();
 
-  // ── Company tab ────────────────────────────────────────────────────────────
-  const [company, setCompany] = useState<CompanyForm>({
-    name: '',
-    slug: '',
-    description: '',
-    address: '',
-  });
+  // ── Company tab ─────────────────────────────────────────────────────────────
+  const [company, setCompany] = useState<CompanyForm>({ name: '', slug: '', description: '', address: '' });
   const [savingCompany, setSavingCompany] = useState(false);
   const slugManuallyEdited = useRef(false);
 
-  // ── WhatsApp tab ───────────────────────────────────────────────────────────
-  const [whatsapp, setWhatsapp] = useState<WhatsAppForm>({ phone_whatsapp: '' });
+  // ── WhatsApp tab ────────────────────────────────────────────────────────────
+  const [whatsapp, setWhatsapp] = useState({ phone_whatsapp: '' });
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
 
-  // Populate form when tenant loads
+  // ── Branding tab ────────────────────────────────────────────────────────────
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [savingBranding, setSavingBranding] = useState(false);
+
   useEffect(() => {
     if (tenant) {
       setCompany({
@@ -60,17 +140,16 @@ export default function Settings() {
         address: tenant.address ?? '',
       });
       setWhatsapp({ phone_whatsapp: tenant.phone_whatsapp ?? '' });
+      setLogoUrl(tenant.logo_url ?? null);
+      setCoverUrl(tenant.cover_url ?? null);
       slugManuallyEdited.current = false;
     }
   }, [tenant]);
 
-  // Auto-generate slug from name, unless user has manually edited slug
   const handleNameChange = (value: string) => {
     setCompany(prev => {
       const next = { ...prev, name: value };
-      if (!slugManuallyEdited.current) {
-        next.slug = toSlug(value);
-      }
+      if (!slugManuallyEdited.current) next.slug = toSlug(value);
       return next;
     });
   };
@@ -82,26 +161,15 @@ export default function Settings() {
 
   const saveCompany = async () => {
     if (!tenant?.id) return;
-    if (!company.name.trim()) {
-      toast({ title: 'Nome é obrigatório', variant: 'destructive' });
-      return;
-    }
-    if (!company.slug.trim()) {
-      toast({ title: 'Slug é obrigatório', variant: 'destructive' });
-      return;
-    }
-
+    if (!company.name.trim()) { toast({ title: 'Nome é obrigatório', variant: 'destructive' }); return; }
+    if (!company.slug.trim()) { toast({ title: 'Slug é obrigatório', variant: 'destructive' }); return; }
     setSavingCompany(true);
-    const { error } = await supabase
-      .from('tenants')
-      .update({
-        name: company.name.trim(),
-        slug: company.slug.trim(),
-        description: company.description.trim() || null,
-        address: company.address.trim() || null,
-      })
-      .eq('id', tenant.id);
-
+    const { error } = await supabase.from('tenants').update({
+      name: company.name.trim(),
+      slug: company.slug.trim(),
+      description: company.description.trim() || null,
+      address: company.address.trim() || null,
+    }).eq('id', tenant.id);
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
     } else {
@@ -114,11 +182,7 @@ export default function Settings() {
   const saveWhatsApp = async () => {
     if (!tenant?.id) return;
     setSavingWhatsapp(true);
-    const { error } = await supabase
-      .from('tenants')
-      .update({ phone_whatsapp: whatsapp.phone_whatsapp.trim() })
-      .eq('id', tenant.id);
-
+    const { error } = await supabase.from('tenants').update({ phone_whatsapp: whatsapp.phone_whatsapp.trim() }).eq('id', tenant.id);
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
     } else {
@@ -127,6 +191,46 @@ export default function Settings() {
     }
     setSavingWhatsapp(false);
   };
+
+  // ── Branding helpers ────────────────────────────────────────────────────────
+  const uploadBrandImage = async (file: File, type: 'logo' | 'cover') => {
+    if (!tenant?.id) return;
+    const setUploading = type === 'logo' ? setUploadingLogo : setUploadingCover;
+    const setUrl = type === 'logo' ? setLogoUrl : setCoverUrl;
+    const prefix = type === 'logo' ? 'logo' : 'cover';
+    setUploading(true);
+    try {
+      const timestamp = Date.now();
+      const path = `${tenant.id}/brand/${prefix}-${timestamp}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('tenant-assets').getPublicUrl(path);
+      setUrl(data.publicUrl);
+      toast({ title: `${type === 'logo' ? 'Logo' : 'Capa'} enviada! Clique em Salvar para confirmar.` });
+    } catch (err: unknown) {
+      toast({ title: 'Erro no upload', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const saveBranding = async () => {
+    if (!tenant?.id) return;
+    setSavingBranding(true);
+    const { error } = await supabase.from('tenants').update({
+      logo_url: logoUrl,
+      cover_url: coverUrl,
+    }).eq('id', tenant.id);
+    if (error) {
+      toast({ title: 'Erro ao salvar marca', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Marca salva com sucesso!' });
+      await refetch();
+    }
+    setSavingBranding(false);
+  };
+
+  const isBrandingUploading = uploadingLogo || uploadingCover;
 
   return (
     <div className="space-y-6">
@@ -143,55 +247,30 @@ export default function Settings() {
           <TabsTrigger value="hours">Horários</TabsTrigger>
         </TabsList>
 
-        {/* ── Empresa ─────────────────────────────────────────────────────── */}
+        {/* ── Empresa ──────────────────────────────────────────────────────── */}
         <TabsContent value="company" className="mt-6 space-y-4">
           <div className="bg-card rounded-xl p-6 border border-border/50 shadow-card space-y-4">
             <div>
               <Label>Nome do estabelecimento</Label>
-              <Input
-                value={company.name}
-                onChange={e => handleNameChange(e.target.value)}
-                placeholder="Burger House"
-                className="mt-1.5"
-              />
+              <Input value={company.name} onChange={e => handleNameChange(e.target.value)} placeholder="Burger House" className="mt-1.5" />
             </div>
             <div>
               <Label>Slug (URL pública)</Label>
-              <Input
-                value={company.slug}
-                onChange={e => handleSlugChange(e.target.value)}
-                placeholder="burger-house"
-                className="mt-1.5"
-              />
+              <Input value={company.slug} onChange={e => handleSlugChange(e.target.value)} placeholder="burger-house" className="mt-1.5" />
               <p className="text-xs text-muted-foreground mt-1">
                 Seu cardápio estará em: <span className="font-mono">/menu/{company.slug || 'seu-slug'}</span>
               </p>
             </div>
             <div>
               <Label>Descrição</Label>
-              <Textarea
-                value={company.description}
-                onChange={e => setCompany(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Descreva seu negócio..."
-                className="mt-1.5"
-                rows={3}
-              />
+              <Textarea value={company.description} onChange={e => setCompany(prev => ({ ...prev, description: e.target.value }))} placeholder="Descreva seu negócio..." className="mt-1.5" rows={3} />
             </div>
             <div>
               <Label>Endereço</Label>
-              <Input
-                value={company.address}
-                onChange={e => setCompany(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="Rua..."
-                className="mt-1.5"
-              />
+              <Input value={company.address} onChange={e => setCompany(prev => ({ ...prev, address: e.target.value }))} placeholder="Rua..." className="mt-1.5" />
             </div>
-            <Button
-              className="gradient-primary text-primary-foreground border-0"
-              onClick={saveCompany}
-              disabled={savingCompany}
-            >
-              {savingCompany ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+            <Button className="gradient-primary text-primary-foreground border-0" onClick={saveCompany} disabled={savingCompany}>
+              {savingCompany && <Loader2 size={16} className="animate-spin mr-2" />}
               {savingCompany ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
@@ -202,20 +281,11 @@ export default function Settings() {
           <div className="bg-card rounded-xl p-6 border border-border/50 shadow-card space-y-4">
             <div>
               <Label>Número do WhatsApp</Label>
-              <Input
-                value={whatsapp.phone_whatsapp}
-                onChange={e => setWhatsapp({ phone_whatsapp: e.target.value })}
-                placeholder="(34) 99999-9999"
-                className="mt-1.5"
-              />
+              <Input value={whatsapp.phone_whatsapp} onChange={e => setWhatsapp({ phone_whatsapp: e.target.value })} placeholder="(34) 99999-9999" className="mt-1.5" />
               <p className="text-xs text-muted-foreground mt-1">Este número receberá os pedidos dos clientes</p>
             </div>
-            <Button
-              className="gradient-primary text-primary-foreground border-0"
-              onClick={saveWhatsApp}
-              disabled={savingWhatsapp}
-            >
-              {savingWhatsapp ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+            <Button className="gradient-primary text-primary-foreground border-0" onClick={saveWhatsApp} disabled={savingWhatsapp}>
+              {savingWhatsapp && <Loader2 size={16} className="animate-spin mr-2" />}
               {savingWhatsapp ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
@@ -224,19 +294,28 @@ export default function Settings() {
         {/* ── Marca ────────────────────────────────────────────────────────── */}
         <TabsContent value="branding" className="mt-6 space-y-4">
           <div className="bg-card rounded-xl p-6 border border-border/50 shadow-card space-y-4">
-            <div>
-              <Label>Logo</Label>
-              <div className="mt-1.5 border-2 border-dashed border-border rounded-xl p-8 text-center">
-                <p className="text-sm text-muted-foreground">Arraste uma imagem ou clique para enviar</p>
-              </div>
-            </div>
-            <div>
-              <Label>Imagem de capa</Label>
-              <div className="mt-1.5 border-2 border-dashed border-border rounded-xl p-8 text-center">
-                <p className="text-sm text-muted-foreground">Arraste uma imagem ou clique para enviar</p>
-              </div>
-            </div>
-            <Button className="gradient-primary text-primary-foreground border-0">Salvar</Button>
+            <ImageUploadZone
+              label="Logo"
+              currentUrl={logoUrl}
+              onUpload={f => uploadBrandImage(f, 'logo')}
+              onRemove={() => setLogoUrl(null)}
+              uploading={uploadingLogo}
+            />
+            <ImageUploadZone
+              label="Imagem de capa"
+              currentUrl={coverUrl}
+              onUpload={f => uploadBrandImage(f, 'cover')}
+              onRemove={() => setCoverUrl(null)}
+              uploading={uploadingCover}
+            />
+            <Button
+              className="gradient-primary text-primary-foreground border-0"
+              onClick={saveBranding}
+              disabled={savingBranding || isBrandingUploading}
+            >
+              {(savingBranding || isBrandingUploading) && <Loader2 size={16} className="animate-spin mr-2" />}
+              {isBrandingUploading ? 'Aguardando upload...' : savingBranding ? 'Salvando...' : 'Salvar'}
+            </Button>
           </div>
         </TabsContent>
 
