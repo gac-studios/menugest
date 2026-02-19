@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/hooks/useTenant';
+import { useAppAdmin } from '@/hooks/useAppAdmin';
 import {
   LayoutDashboard, UtensilsCrossed, Tag, Settings, Package, ShoppingCart,
-  DollarSign, BarChart3, Users, Menu, X, LogOut, Crown, ChevronDown
+  DollarSign, BarChart3, Users, Menu, X, LogOut, Crown, ChevronDown, ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -38,6 +39,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const { isProEnabled } = useTenant();
+  const { isAppAdmin } = useAppAdmin();
 
   const toggleExpanded = (label: string) => {
     setExpandedItems(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
@@ -119,6 +121,41 @@ export default function AdminLayout() {
                 </div>
               );
             })}
+
+            {/* Super Admin section */}
+            {isAppAdmin && (
+              <div className="pt-3 mt-3 border-t border-sidebar-border/50">
+                <div>
+                  <button
+                    onClick={() => toggleExpanded('superadmin')}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive('/superadmin')
+                        ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    }`}
+                  >
+                    <ShieldCheck size={20} />
+                    <span className="flex-1 text-left">Super Admin</span>
+                    <ChevronDown size={14} className={`transition-transform ${expandedItems.includes('superadmin') ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expandedItems.includes('superadmin') && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      <Link
+                        to="/superadmin/clients"
+                        onClick={() => setSidebarOpen(false)}
+                        className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                          location.pathname === '/superadmin/clients'
+                            ? 'text-sidebar-primary-foreground bg-sidebar-primary/80'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent'
+                        }`}
+                      >
+                        Clientes
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </nav>
 
           {/* Upgrade banner */}
