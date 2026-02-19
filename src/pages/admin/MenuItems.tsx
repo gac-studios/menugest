@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search, Loader2, UtensilsCrossed } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Edit, Trash2, Search, Loader2, UtensilsCrossed, X, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -29,7 +29,8 @@ interface FormState {
   is_available: boolean;
   is_active: boolean;
   is_promotion: boolean;
-  image_url: string;
+  /** current persisted URL (null = no image) */
+  image_url: string | null;
 }
 
 const EMPTY_FORM: FormState = {
@@ -41,13 +42,15 @@ const EMPTY_FORM: FormState = {
   is_available: true,
   is_active: true,
   is_promotion: false,
-  image_url: '',
+  image_url: null,
 };
 
 /** Converte string "29,90" ou "29.90" para número */
 function parseBRL(val: string): number {
   return parseFloat(val.replace(',', '.'));
 }
+
+const BUCKET = 'menu-items';
 
 export default function MenuItems() {
   const { tenant } = useTenant();
@@ -63,6 +66,13 @@ export default function MenuItems() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+
+  // ── Image upload state ─────────────────────────────────────────────────────
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = async () => {
     if (!tenant?.id) return;
@@ -93,9 +103,18 @@ export default function MenuItems() {
 
   useEffect(() => { fetchData(); }, [tenant?.id]);
 
+  // ── Reset image state when dialog closes ──────────────────────────────────
+  const resetImageState = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageRemoved(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    resetImageState();
     setDialogOpen(true);
   };
 
@@ -110,9 +129,48 @@ export default function MenuItems() {
       is_available: item.is_available,
       is_active: item.is_active,
       is_promotion: item.is_promotion,
-      image_url: item.image_url || '',
+      image_url: item.image_url || null,
     });
+    resetImageState();
     setDialogOpen(true);
+  };
+
+  // ── File selection & preview ───────────────────────────────────────────────
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImageRemoved(false);
+    const reader = new FileReader();
+    reader.onload = ev => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageRemoved(true);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  /** Uploads the selected file and returns the public URL */
+  const uploadImage = async (itemId: string): Promise<string | null> => {
+    if (!imageFile || !tenant?.id) return null;
+    const timestamp = Date.now();
+    const ext = imageFile.name.split('.').pop();
+    const path = `${tenant.id}/menu_items/${itemId}/${timestamp}-${imageFile.name}`;
+
+    setUploading(true);
+    const { error } = await supabase.storage.from(BUCKET).upload(path, imageFile, { upsert: true });
+    setUploading(false);
+
+    if (error) {
+      toast({ title: 'Erro ao fazer upload', description: error.message, variant: 'destructive' });
+      return null;
+    }
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return data.publicUrl;
   };
 
   const handleSave = async () => {
@@ -141,48 +199,90 @@ export default function MenuItems() {
 
     setSaving(true);
 
-    // Payload alinhado ao schema exato do banco
-    const payload = {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      price: priceNum,                                          // numeric (reais)
-      original_price: originalPriceNum ?? null,                // numeric (reais) ou null
-      category_id: form.category_id,
-      is_available: form.is_available,
-      is_active: form.is_active,
-      is_promotion: form.is_promotion,
-      image_url: form.image_url.trim() || null,
-    };
+    try {
+      if (editingId) {
+        // ── Update path ────────────────────────────────────────────────────
+        let finalImageUrl = form.image_url;
 
-    if (editingId) {
-      const { error } = await supabase
-        .from('menu_items')
-        .update(payload)
-        .eq('id', editingId)
-        .eq('tenant_id', tenant.id);
+        if (imageFile) {
+          const uploaded = await uploadImage(editingId);
+          if (uploaded) finalImageUrl = uploaded;
+          // if upload failed, toast was already shown; keep old image
+        } else if (imageRemoved) {
+          finalImageUrl = null;
+        }
 
-      if (error) {
-        toast({ title: 'Erro ao atualizar item', description: error.message, variant: 'destructive' });
+        const payload = {
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          price: priceNum,
+          original_price: originalPriceNum ?? null,
+          category_id: form.category_id,
+          is_available: form.is_available,
+          is_active: form.is_active,
+          is_promotion: form.is_promotion,
+          image_url: finalImageUrl,
+        };
+
+        const { error } = await supabase
+          .from('menu_items')
+          .update(payload)
+          .eq('id', editingId)
+          .eq('tenant_id', tenant.id);
+
+        if (error) {
+          toast({ title: 'Erro ao atualizar item', description: error.message, variant: 'destructive' });
+        } else {
+          toast({ title: 'Item atualizado!' });
+          setDialogOpen(false);
+          fetchData();
+        }
       } else {
-        toast({ title: 'Item atualizado!' });
-        setDialogOpen(false);
-        fetchData();
-      }
-    } else {
-      const nextOrder = items.length > 0 ? Math.max(...items.map(i => i.sort_order)) + 1 : 1;
-      const { error } = await supabase
-        .from('menu_items')
-        .insert({ ...payload, tenant_id: tenant.id, sort_order: nextOrder });
+        // ── Insert path ────────────────────────────────────────────────────
+        const nextOrder = items.length > 0 ? Math.max(...items.map(i => i.sort_order)) + 1 : 1;
 
-      if (error) {
-        toast({ title: 'Erro ao criar item', description: error.message, variant: 'destructive' });
-      } else {
-        toast({ title: 'Item criado!' });
-        setDialogOpen(false);
-        fetchData();
+        // Insert first to get the ID, then upload image with it
+        const { data: inserted, error: insertError } = await supabase
+          .from('menu_items')
+          .insert({
+            tenant_id: tenant.id,
+            category_id: form.category_id,
+            name: form.name.trim(),
+            description: form.description.trim() || null,
+            price: priceNum,
+            original_price: originalPriceNum ?? null,
+            is_available: form.is_available,
+            is_active: form.is_active,
+            is_promotion: form.is_promotion,
+            image_url: null,
+            sort_order: nextOrder,
+          })
+          .select('id')
+          .single();
+
+        if (insertError || !inserted) {
+          toast({ title: 'Erro ao criar item', description: insertError?.message, variant: 'destructive' });
+        } else {
+          let finalImageUrl: string | null = null;
+          if (imageFile) {
+            finalImageUrl = await uploadImage(inserted.id);
+          }
+
+          if (finalImageUrl) {
+            await supabase
+              .from('menu_items')
+              .update({ image_url: finalImageUrl })
+              .eq('id', inserted.id);
+          }
+
+          toast({ title: 'Item criado!' });
+          setDialogOpen(false);
+          fetchData();
+        }
       }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -205,6 +305,9 @@ export default function MenuItems() {
 
   const categoryName = (id: string) => categories.find(c => c.id === id)?.name || '—';
   const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+
+  // The current image to display in the form (preview > existing > none)
+  const currentDisplayImage = imagePreview ?? (imageRemoved ? null : form.image_url);
 
   return (
     <div className="space-y-6">
@@ -306,7 +409,7 @@ export default function MenuItems() {
       )}
 
       {/* Create / Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) resetImageState(); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar Item' : 'Novo Item'}</DialogTitle>
@@ -371,14 +474,57 @@ export default function MenuItems() {
               </Select>
             </div>
 
+            {/* ── Image upload ──────────────────────────────────────────── */}
             <div>
-              <Label>URL da imagem (opcional)</Label>
-              <Input
-                value={form.image_url}
-                onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))}
-                placeholder="https://..."
-                className="mt-1.5"
-              />
+              <Label>Imagem do item</Label>
+              <div className="mt-1.5 space-y-2">
+                {currentDisplayImage ? (
+                  <div className="relative w-full h-40 rounded-xl overflow-hidden border border-border">
+                    <img
+                      src={currentDisplayImage}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 bg-background/80 hover:bg-background rounded-full p-1 border border-border"
+                      title="Remover imagem"
+                    >
+                      <X size={14} className="text-foreground" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-32 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                  >
+                    <ImageIcon size={24} />
+                    <span className="text-sm">Clique para selecionar imagem</span>
+                  </button>
+                )}
+
+                {currentDisplayImage && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Trocar imagem
+                  </Button>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between py-1">
@@ -417,10 +563,10 @@ export default function MenuItems() {
             <Button
               className="w-full gradient-primary text-primary-foreground border-0"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || uploading}
             >
-              {saving ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
-              {saving ? 'Salvando...' : 'Salvar'}
+              {(saving || uploading) ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+              {uploading ? 'Enviando imagem...' : saving ? 'Salvando...' : 'Salvar'}
             </Button>
           </div>
         </DialogContent>
