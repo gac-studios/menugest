@@ -12,15 +12,23 @@ import { useTenant } from '@/hooks/useTenant';
 import { useToast } from '@/hooks/use-toast';
 import type { MenuItem, MenuCategory } from '@/lib/types';
 
+// ── Colunas usadas no banco ──────────────────────────────────────────────────
+// menu_items: tenant_id, category_id, name, description, price (numeric/reais),
+//             original_price, image_url, is_available, is_active,
+//             is_promotion, sort_order, created_at
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface FormState {
   name: string;
   description: string;
+  /** valor em reais digitado pelo usuário */
   price: string;
+  /** valor em reais digitado pelo usuário */
   original_price: string;
   category_id: string;
   is_available: boolean;
+  is_active: boolean;
   is_promotion: boolean;
-  promotion_label: string;
   image_url: string;
 }
 
@@ -31,18 +39,14 @@ const EMPTY_FORM: FormState = {
   original_price: '',
   category_id: '',
   is_available: true,
+  is_active: true,
   is_promotion: false,
-  promotion_label: '',
   image_url: '',
 };
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+/** Converte string "29,90" ou "29.90" para número */
+function parseBRL(val: string): number {
+  return parseFloat(val.replace(',', '.'));
 }
 
 export default function MenuItems() {
@@ -65,22 +69,29 @@ export default function MenuItems() {
     setLoading(true);
 
     const [itemsRes, catsRes] = await Promise.all([
-      supabase.from('menu_items').select('*').eq('tenant_id', tenant.id).order('sort_order', { ascending: true }),
-      supabase.from('menu_categories').select('*').eq('tenant_id', tenant.id).eq('is_active', true).order('sort_order'),
+      supabase
+        .from('menu_items')
+        .select('id, tenant_id, category_id, name, description, price, original_price, image_url, is_available, is_active, is_promotion, sort_order, created_at')
+        .eq('tenant_id', tenant.id)
+        .order('sort_order', { ascending: true }),
+      supabase
+        .from('menu_categories')
+        .select('id, tenant_id, name, description, image_url, is_active, sort_order, created_at')
+        .eq('tenant_id', tenant.id)
+        .eq('is_active', true)
+        .order('sort_order'),
     ]);
 
     if (itemsRes.error) {
       toast({ title: 'Erro ao carregar itens', description: itemsRes.error.message, variant: 'destructive' });
     } else {
-      setItems(itemsRes.data || []);
+      setItems((itemsRes.data || []) as MenuItem[]);
     }
-    setCategories(catsRes.data || []);
+    setCategories((catsRes.data || []) as MenuCategory[]);
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [tenant?.id]);
+  useEffect(() => { fetchData(); }, [tenant?.id]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -93,12 +104,12 @@ export default function MenuItems() {
     setForm({
       name: item.name,
       description: item.description || '',
-      price: item.price.toString(),
-      original_price: item.original_price?.toString() || '',
+      price: item.price.toFixed(2).replace('.', ','),
+      original_price: item.original_price != null ? item.original_price.toFixed(2).replace('.', ',') : '',
       category_id: item.category_id,
       is_available: item.is_available,
+      is_active: item.is_active,
       is_promotion: item.is_promotion,
-      promotion_label: item.promotion_label || '',
       image_url: item.image_url || '',
     });
     setDialogOpen(true);
@@ -106,6 +117,7 @@ export default function MenuItems() {
 
   const handleSave = async () => {
     if (!tenant?.id) return;
+
     if (!form.name.trim()) {
       toast({ title: 'Nome é obrigatório', variant: 'destructive' });
       return;
@@ -114,23 +126,31 @@ export default function MenuItems() {
       toast({ title: 'Selecione uma categoria', variant: 'destructive' });
       return;
     }
-    const priceNum = parseFloat(form.price.replace(',', '.'));
+
+    const priceNum = parseBRL(form.price);
     if (isNaN(priceNum) || priceNum <= 0) {
       toast({ title: 'Preço inválido', variant: 'destructive' });
       return;
     }
 
+    const originalPriceNum = form.original_price ? parseBRL(form.original_price) : null;
+    if (form.original_price && (originalPriceNum === null || isNaN(originalPriceNum!))) {
+      toast({ title: 'Preço original inválido', variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
+
+    // Payload alinhado ao schema exato do banco
     const payload = {
       name: form.name.trim(),
-      slug: slugify(form.name.trim()),
       description: form.description.trim() || null,
-      price: priceNum,
-      original_price: form.original_price ? parseFloat(form.original_price.replace(',', '.')) : null,
+      price: priceNum,                                          // numeric (reais)
+      original_price: originalPriceNum ?? null,                // numeric (reais) ou null
       category_id: form.category_id,
       is_available: form.is_available,
+      is_active: form.is_active,
       is_promotion: form.is_promotion,
-      promotion_label: form.promotion_label.trim() || null,
       image_url: form.image_url.trim() || null,
     };
 
@@ -225,7 +245,7 @@ export default function MenuItems() {
           {filtered.map(item => (
             <div
               key={item.id}
-              className={`flex items-center gap-4 p-4 bg-card rounded-xl border border-border/50 shadow-card ${!item.is_available ? 'opacity-50' : ''}`}
+              className={`flex items-center gap-4 p-4 bg-card rounded-xl border border-border/50 shadow-card ${!item.is_available || !item.is_active ? 'opacity-50' : ''}`}
             >
               <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
                 {item.image_url ? (
@@ -239,20 +259,31 @@ export default function MenuItems() {
                   <h3 className="font-semibold text-foreground text-sm">{item.name}</h3>
                   {item.is_promotion && (
                     <span className="text-[10px] font-bold bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded-full">
-                      {item.promotion_label || 'PROMO'}
+                      PROMO
                     </span>
                   )}
                   {!item.is_available && (
-                    <span className="text-[10px] font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">INDISPONÍVEL</span>
+                    <span className="text-[10px] font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
+                      INDISPONÍVEL
+                    </span>
+                  )}
+                  {!item.is_active && (
+                    <span className="text-[10px] font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
+                      INATIVO
+                    </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{item.description}</p>
                 <p className="text-[11px] text-muted-foreground/70 mt-0.5">{categoryName(item.category_id)}</p>
               </div>
               <div className="text-right shrink-0">
-                <span className="font-bold text-primary text-sm block">R$ {item.price.toFixed(2)}</span>
-                {item.original_price && (
-                  <span className="text-[11px] text-muted-foreground line-through">R$ {item.original_price.toFixed(2)}</span>
+                <span className="font-bold text-primary text-sm block">
+                  R$ {Number(item.price).toFixed(2)}
+                </span>
+                {item.original_price != null && (
+                  <span className="text-[11px] text-muted-foreground line-through">
+                    R$ {Number(item.original_price).toFixed(2)}
+                  </span>
                 )}
               </div>
               <div className="flex items-center gap-1">
@@ -281,6 +312,7 @@ export default function MenuItems() {
             <DialogTitle>{editingId ? 'Editar Item' : 'Novo Item'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+
             <div>
               <Label>Nome *</Label>
               <Input
@@ -314,7 +346,7 @@ export default function MenuItems() {
                 />
               </div>
               <div>
-                <Label>Preço original (se promo)</Label>
+                <Label>Preço original (promoção)</Label>
                 <Input
                   value={form.original_price}
                   onChange={e => setForm(f => ({ ...f, original_price: e.target.value }))}
@@ -351,7 +383,7 @@ export default function MenuItems() {
 
             <div className="flex items-center justify-between py-1">
               <div>
-                <Label className="cursor-pointer">Disponível</Label>
+                <Label>Disponível</Label>
                 <p className="text-xs text-muted-foreground">Item aparece no cardápio público</p>
               </div>
               <Switch
@@ -362,7 +394,18 @@ export default function MenuItems() {
 
             <div className="flex items-center justify-between py-1">
               <div>
-                <Label className="cursor-pointer">É uma promoção</Label>
+                <Label>Ativo</Label>
+                <p className="text-xs text-muted-foreground">Item está ativo no sistema</p>
+              </div>
+              <Switch
+                checked={form.is_active}
+                onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <Label>É uma promoção</Label>
                 <p className="text-xs text-muted-foreground">Aparece na seção de promoções</p>
               </div>
               <Switch
@@ -370,18 +413,6 @@ export default function MenuItems() {
                 onCheckedChange={v => setForm(f => ({ ...f, is_promotion: v }))}
               />
             </div>
-
-            {form.is_promotion && (
-              <div>
-                <Label>Label da promoção</Label>
-                <Input
-                  value={form.promotion_label}
-                  onChange={e => setForm(f => ({ ...f, promotion_label: e.target.value }))}
-                  placeholder="Ex: -20%, PROMO"
-                  className="mt-1.5"
-                />
-              </div>
-            )}
 
             <Button
               className="w-full gradient-primary text-primary-foreground border-0"

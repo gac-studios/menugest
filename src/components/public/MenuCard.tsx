@@ -35,7 +35,7 @@ export default function MenuCard({ item, compact }: MenuCardProps) {
           <img src={item.image_url} alt={item.name} className="w-20 h-20 rounded-lg object-cover" onError={() => setImgError(true)} />
           {item.is_promotion && (
             <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              {item.promotion_label || 'PROMO'}
+              PROMO
             </span>
           )}
         </div>
