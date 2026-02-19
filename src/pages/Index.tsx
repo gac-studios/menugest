@@ -27,13 +27,10 @@ export default function Index() {
           </Link>
           <div className="flex items-center gap-3">
             <Link to="/plans">
-              <Button variant="ghost" size="sm">Planos</Button>
+              <Button size="sm" className="gradient-primary text-primary-foreground border-0">Planos</Button>
             </Link>
             <Link to="/login">
-              <Button variant="outline" size="sm">Entrar</Button>
-            </Link>
-            <Link to="/register">
-              <Button size="sm" className="gradient-primary text-primary-foreground border-0">Começar Grátis</Button>
+              <Button variant="outline" size="sm" className="border-border text-foreground bg-transparent hover:bg-muted">Entrar</Button>
             </Link>
           </div>
         </div>

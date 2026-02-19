@@ -32,12 +32,20 @@ interface SaleLine {
   unit_price: number;
 }
 
+const paymentLabels: Record<string, string> = {
+  dinheiro: 'Dinheiro',
+  pix: 'PIX',
+  credito: 'Crédito',
+  debito: 'Débito',
+};
+
 export default function SalesPage() {
   const { tenant, isProEnabled } = useTenant();
   const { toast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItemOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
   const [lines, setLines] = useState<SaleLine[]>([]);
@@ -46,22 +54,45 @@ export default function SalesPage() {
     if (!tenant) return;
     setLoading(true);
     const [salesRes, itemsRes] = await Promise.all([
-      supabase.from('sales').select('*').eq('tenant_id', tenant.id).order('created_at', { ascending: false }),
-      supabase.from('menu_items').select('id, name, price').eq('tenant_id', tenant.id).eq('is_available', true).order('name'),
+      supabase
+        .from('sales')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('menu_items')
+        .select('id, name, price')
+        .eq('tenant_id', tenant.id)
+        .eq('is_available', true)
+        .eq('is_active', true)
+        .order('name'),
     ]);
+
+    if (salesRes.error) {
+      console.error('Error fetching sales:', salesRes.error);
+    }
+    if (itemsRes.error) {
+      console.error('Error fetching menu items:', itemsRes.error);
+    }
+
     setSales(salesRes.data || []);
     setMenuItems(itemsRes.data || []);
     setLoading(false);
   };
 
-  useEffect(() => { if (isProEnabled) fetchData(); }, [tenant, isProEnabled]);
+  useEffect(() => {
+    if (isProEnabled) fetchData();
+  }, [tenant, isProEnabled]);
 
   if (!isProEnabled) return <ProModule />;
 
   const addLine = () => {
-    if (menuItems.length === 0) { toast({ title: 'Cadastre itens no cardápio primeiro', variant: 'destructive' }); return; }
+    if (menuItems.length === 0) {
+      toast({ title: 'Cadastre itens no cardápio primeiro', variant: 'destructive' });
+      return;
+    }
     const first = menuItems[0];
-    setLines(l => [...l, { menu_item_id: first.id, item_name: first.name, qty: 1, unit_price: first.price }]);
+    setLines(l => [...l, { menu_item_id: first.id, item_name: first.name, qty: 1, unit_price: Number(first.price) }]);
   };
 
   const removeLine = (idx: number) => setLines(l => l.filter((_, i) => i !== idx));
@@ -71,7 +102,7 @@ export default function SalesPage() {
       if (i !== idx) return line;
       if (field === 'menu_item_id') {
         const item = menuItems.find(it => it.id === value);
-        return { ...line, menu_item_id: value, item_name: item?.name || '', unit_price: item?.price || 0 };
+        return { ...line, menu_item_id: value, item_name: item?.name || '', unit_price: Number(item?.price) || 0 };
       }
       return { ...line, [field]: value };
     }));
@@ -79,51 +110,69 @@ export default function SalesPage() {
 
   const total = lines.reduce((sum, l) => sum + l.qty * l.unit_price, 0);
 
-  const paymentLabels: Record<string, string> = {
-    dinheiro: 'Dinheiro',
-    pix: 'PIX',
-    credito: 'Crédito',
-    debito: 'Débito',
-  };
-
   const handleConfirm = async () => {
-    if (!tenant || lines.length === 0) { toast({ title: 'Adicione ao menos um item', variant: 'destructive' }); return; }
-
-    const { data: sale, error: saleError } = await supabase
-      .from('sales')
-      .insert({ tenant_id: tenant.id, total, payment_method: paymentMethod })
-      .select('id')
-      .single();
-
-    if (saleError || !sale) {
-      toast({ title: 'Erro ao criar venda', description: saleError?.message, variant: 'destructive' });
+    if (!tenant) return;
+    if (lines.length === 0) {
+      toast({ title: 'Adicione ao menos um item', variant: 'destructive' });
       return;
     }
 
-    const saleItems = lines.map(l => ({
-      tenant_id: tenant.id,
-      sale_id: sale.id,
-      menu_item_id: l.menu_item_id,
-      qty: l.qty,
-      unit_price: l.unit_price,
-      subtotal: l.qty * l.unit_price,
-    }));
-    await supabase.from('sale_items').insert(saleItems);
+    setSaving(true);
+    try {
+      // 1. Insert sale
+      const { data: sale, error: saleError } = await supabase
+        .from('sales')
+        .insert({
+          tenant_id: tenant.id,
+          total: parseFloat(total.toFixed(2)),
+          payment_method: paymentMethod,
+        })
+        .select('id')
+        .single();
 
-    // Financial transaction (income)
-    await supabase.from('financial_transactions').insert({
-      tenant_id: tenant.id,
-      type: 'income',
-      category: 'Venda',
-      amount: total,
-      reference_id: sale.id,
-      reference_type: 'sale',
-    });
+      if (saleError || !sale) {
+        toast({ title: 'Erro ao criar venda', description: saleError?.message, variant: 'destructive' });
+        return;
+      }
 
-    toast({ title: 'Venda registrada com sucesso' });
-    setDialogOpen(false);
-    setLines([]);
-    fetchData();
+      // 2. Insert sale items
+      const saleItems = lines.map(l => ({
+        tenant_id: tenant.id,
+        sale_id: sale.id,
+        menu_item_id: l.menu_item_id,
+        qty: l.qty,
+        unit_price: l.unit_price,
+        subtotal: parseFloat((l.qty * l.unit_price).toFixed(2)),
+      }));
+
+      const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
+      if (itemsError) {
+        console.error('Error inserting sale items:', itemsError);
+      }
+
+      // 3. Financial transaction (income)
+      const { error: finError } = await supabase.from('financial_transactions').insert({
+        tenant_id: tenant.id,
+        type: 'income',
+        category: 'Venda',
+        amount: parseFloat(total.toFixed(2)),
+        reference_id: sale.id,
+        reference_type: 'sale',
+      });
+      if (finError) {
+        console.error('Error inserting financial transaction:', finError);
+      }
+
+      toast({ title: 'Venda registrada com sucesso!' });
+      setDialogOpen(false);
+      setLines([]);
+      setPaymentMethod('dinheiro');
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Erro inesperado', description: err?.message || 'Tente novamente', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -133,13 +182,15 @@ export default function SalesPage() {
           <h1 className="text-2xl font-bold text-foreground">Vendas</h1>
           <p className="text-muted-foreground text-sm">Registre vendas manuais e acompanhe o histórico</p>
         </div>
-        <Button onClick={() => { setDialogOpen(true); setLines([]); }} className="gap-2">
+        <Button onClick={() => { setDialogOpen(true); setLines([]); setPaymentMethod('dinheiro'); }} className="gap-2">
           <Plus size={16} /> Nova Venda
         </Button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>
+        <div className="flex justify-center py-12">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
       ) : sales.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-lg font-medium">Nenhuma venda registrada</p>
@@ -160,7 +211,7 @@ export default function SalesPage() {
                 <TableRow key={s.id}>
                   <TableCell>{new Date(s.created_at).toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell>{paymentLabels[s.payment_method] || s.payment_method}</TableCell>
-                  <TableCell className="text-right font-semibold">R$ {s.total.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-semibold">R$ {Number(s.total).toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -207,18 +258,27 @@ export default function SalesPage() {
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {menuItems.map(it => (
-                              <SelectItem key={it.id} value={it.id}>{it.name} — R$ {it.price.toFixed(2)}</SelectItem>
+                              <SelectItem key={it.id} value={it.id}>
+                                {it.name} — R$ {Number(it.price).toFixed(2)}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="w-20">
                         <Label className="text-xs">Qtd</Label>
-                        <Input type="number" value={line.qty} onChange={e => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)} />
+                        <Input
+                          type="number"
+                          min="1"
+                          value={line.qty}
+                          onChange={e => updateLine(idx, 'qty', parseFloat(e.target.value) || 1)}
+                        />
                       </div>
                       <div className="w-24 text-right">
                         <Label className="text-xs">Subtotal</Label>
-                        <p className="h-10 flex items-center justify-end font-semibold text-sm">R$ {(line.qty * line.unit_price).toFixed(2)}</p>
+                        <p className="h-10 flex items-center justify-end font-semibold text-sm">
+                          R$ {(line.qty * line.unit_price).toFixed(2)}
+                        </p>
                       </div>
                       <Button size="icon" variant="ghost" className="h-10 w-10 text-destructive" onClick={() => removeLine(idx)}>
                         <Trash2 size={14} />
@@ -231,7 +291,9 @@ export default function SalesPage() {
 
             <div className="flex items-center justify-between pt-4 border-t border-border">
               <span className="text-lg font-bold text-foreground">Total: R$ {total.toFixed(2)}</span>
-              <Button onClick={handleConfirm} disabled={lines.length === 0}>Confirmar Venda</Button>
+              <Button onClick={handleConfirm} disabled={lines.length === 0 || saving}>
+                {saving ? 'Salvando...' : 'Confirmar Venda'}
+              </Button>
             </div>
           </div>
         </DialogContent>

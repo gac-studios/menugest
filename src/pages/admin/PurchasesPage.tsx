@@ -41,6 +41,7 @@ export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [supplier, setSupplier] = useState('');
   const [lines, setLines] = useState<PurchaseLine[]>([]);
@@ -50,8 +51,16 @@ export default function PurchasesPage() {
     setLoading(true);
     const [purchasesRes, itemsRes] = await Promise.all([
       supabase.from('purchases').select('*').eq('tenant_id', tenant.id).order('created_at', { ascending: false }),
-      supabase.from('inventory_items').select('id, name, unit, stock_current, cost_avg').eq('tenant_id', tenant.id).order('name'),
+      supabase
+        .from('inventory_items')
+        .select('id, name, unit, stock_current, cost_avg')
+        .eq('tenant_id', tenant.id)
+        .order('name'),
     ]);
+
+    if (purchasesRes.error) console.error('Error fetching purchases:', purchasesRes.error);
+    if (itemsRes.error) console.error('Error fetching inventory items:', itemsRes.error);
+
     setPurchases(purchasesRes.data || []);
     setInventoryItems(itemsRes.data || []);
     setLoading(false);
@@ -82,67 +91,91 @@ export default function PurchasesPage() {
   const total = lines.reduce((sum, l) => sum + l.qty * l.unit_cost, 0);
 
   const handleConfirm = async () => {
-    if (!tenant || lines.length === 0) { toast({ title: 'Adicione ao menos um item', variant: 'destructive' }); return; }
-
-    // 1. Create purchase
-    const { data: purchase, error: purchaseError } = await supabase
-      .from('purchases')
-      .insert({ tenant_id: tenant.id, supplier: supplier || 'Sem fornecedor', total, status: 'confirmed' })
-      .select('id')
-      .single();
-
-    if (purchaseError || !purchase) {
-      toast({ title: 'Erro ao criar compra', description: purchaseError?.message, variant: 'destructive' });
+    if (!tenant) return;
+    if (lines.length === 0) {
+      toast({ title: 'Adicione ao menos um item', variant: 'destructive' });
       return;
     }
 
-    // 2. Create purchase items
-    const purchaseItems = lines.map(l => ({
-      tenant_id: tenant.id,
-      purchase_id: purchase.id,
-      item_id: l.item_id,
-      qty: l.qty,
-      unit_cost: l.unit_cost,
-      subtotal: l.qty * l.unit_cost,
-    }));
-    await supabase.from('purchase_items').insert(purchaseItems);
+    setSaving(true);
+    try {
+      // 1. Create purchase
+      const { data: purchase, error: purchaseError } = await supabase
+        .from('purchases')
+        .insert({
+          tenant_id: tenant.id,
+          supplier: supplier.trim() || 'Sem fornecedor',
+          total: parseFloat(total.toFixed(2)),
+          status: 'confirmed',
+        })
+        .select('id')
+        .single();
 
-    // 3. Create inventory movements and update stock
-    for (const line of lines) {
-      await supabase.from('inventory_movements').insert({
-        tenant_id: tenant.id,
-        item_id: line.item_id,
-        type: 'in',
-        qty: line.qty,
-        unit_cost: line.unit_cost,
-        note: `Compra #${purchase.id.slice(0, 8)}`,
-      });
-
-      const item = inventoryItems.find(it => it.id === line.item_id);
-      if (item) {
-        const newStock = item.stock_current + line.qty;
-        const totalOld = item.cost_avg * item.stock_current;
-        const totalNew = line.unit_cost * line.qty;
-        const newCostAvg = newStock > 0 ? (totalOld + totalNew) / newStock : line.unit_cost;
-        await supabase.from('inventory_items').update({ stock_current: newStock, cost_avg: newCostAvg }).eq('id', item.id);
+      if (purchaseError || !purchase) {
+        toast({ title: 'Erro ao criar compra', description: purchaseError?.message, variant: 'destructive' });
+        return;
       }
+
+      // 2. Create purchase items
+      const purchaseItems = lines.map(l => ({
+        tenant_id: tenant.id,
+        purchase_id: purchase.id,
+        item_id: l.item_id,
+        qty: l.qty,
+        unit_cost: l.unit_cost,
+        subtotal: parseFloat((l.qty * l.unit_cost).toFixed(2)),
+      }));
+
+      const { error: itemsError } = await supabase.from('purchase_items').insert(purchaseItems);
+      if (itemsError) console.error('Error inserting purchase items:', itemsError);
+
+      // 3. Create inventory movements and update stock
+      for (const line of lines) {
+        const { error: movError } = await supabase.from('inventory_movements').insert({
+          tenant_id: tenant.id,
+          item_id: line.item_id,
+          type: 'in',
+          qty: line.qty,
+          unit_cost: line.unit_cost,
+          note: `Compra #${purchase.id.slice(0, 8)}`,
+        });
+        if (movError) console.error('Error inserting movement:', movError);
+
+        const item = inventoryItems.find(it => it.id === line.item_id);
+        if (item) {
+          const newStock = (item.stock_current || 0) + line.qty;
+          const totalOld = (item.cost_avg || 0) * (item.stock_current || 0);
+          const totalNew = line.unit_cost * line.qty;
+          const newCostAvg = newStock > 0 ? (totalOld + totalNew) / newStock : line.unit_cost;
+          await supabase
+            .from('inventory_items')
+            .update({ stock_current: newStock, cost_avg: parseFloat(newCostAvg.toFixed(4)) })
+            .eq('id', item.id)
+            .eq('tenant_id', tenant.id);
+        }
+      }
+
+      // 4. Create financial transaction (expense)
+      const { error: finError } = await supabase.from('financial_transactions').insert({
+        tenant_id: tenant.id,
+        type: 'expense',
+        category: 'Compra',
+        amount: parseFloat(total.toFixed(2)),
+        reference_id: purchase.id,
+        reference_type: 'purchase',
+      });
+      if (finError) console.error('Error inserting financial transaction:', finError);
+
+      toast({ title: 'Compra registrada com sucesso!' });
+      setDialogOpen(false);
+      setLines([]);
+      setSupplier('');
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Erro inesperado', description: err?.message || 'Tente novamente', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-
-    // 4. Create financial transaction (expense)
-    await supabase.from('financial_transactions').insert({
-      tenant_id: tenant.id,
-      type: 'expense',
-      category: 'Compra',
-      amount: total,
-      reference_id: purchase.id,
-      reference_type: 'purchase',
-    });
-
-    toast({ title: 'Compra registrada com sucesso' });
-    setDialogOpen(false);
-    setLines([]);
-    setSupplier('');
-    fetchData();
   };
 
   return (
@@ -252,7 +285,9 @@ export default function PurchasesPage() {
 
             <div className="flex items-center justify-between pt-4 border-t border-border">
               <span className="text-lg font-bold text-foreground">Total: R$ {total.toFixed(2)}</span>
-              <Button onClick={handleConfirm} disabled={lines.length === 0}>Confirmar Compra</Button>
+              <Button onClick={handleConfirm} disabled={lines.length === 0 || saving}>
+                {saving ? 'Salvando...' : 'Confirmar Compra'}
+              </Button>
             </div>
           </div>
         </DialogContent>
