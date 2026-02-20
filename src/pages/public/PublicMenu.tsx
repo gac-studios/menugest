@@ -25,6 +25,8 @@ export default function PublicMenu() {
   useEffect(() => {
     const loadTenant = async () => {
       if (!slug) { setNotFound(true); setLoadingTenant(false); return; }
+      // Persist slug so legacy /checkout can redirect correctly
+      localStorage.setItem('last_menu_slug', slug);
       const { data: t } = await supabase
         .from('tenants')
         .select('id, name, logo_url, cover_url, is_active')
@@ -212,7 +214,7 @@ export default function PublicMenu() {
           className="fixed bottom-0 inset-x-0 p-4 bg-background/80 backdrop-blur-lg border-t border-border"
         >
           <div className="max-w-lg mx-auto">
-            <Link to="/checkout">
+            <Link to={`/menu/${slug}/checkout`}>
               <Button className="w-full gradient-primary text-primary-foreground border-0 h-14 text-base" size="lg">
                 <ShoppingCart size={20} className="mr-2" />
                 Ver carrinho ({itemCount}) — R$ {total.toFixed(2)}
