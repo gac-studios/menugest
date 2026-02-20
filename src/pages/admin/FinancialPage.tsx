@@ -79,24 +79,35 @@ export default function FinancialPage() {
 
     if (error) console.error('Error fetching transactions:', error);
 
-    // Filter out transactions linked to soft-deleted sales
-    const allIds = (data || [])
+    // Filter out transactions linked to soft-deleted sales or purchases
+    const saleIds = (data || [])
       .filter(t => t.reference_type === 'sale' && t.reference_id)
       .map(t => t.reference_id as string);
 
-    let deletedSaleIds = new Set<string>();
-    if (allIds.length > 0) {
-      const { data: deletedSales } = await supabase
-        .from('sales')
-        .select('id')
-        .in('id', allIds)
-        .not('deleted_at', 'is', null);
-      deletedSaleIds = new Set((deletedSales || []).map(s => s.id));
-    }
+    const purchaseIds = (data || [])
+      .filter(t => t.reference_type === 'purchase' && t.reference_id)
+      .map(t => t.reference_id as string);
 
-    const filtered = (data || []).filter(t =>
-      !(t.reference_type === 'sale' && t.reference_id && deletedSaleIds.has(t.reference_id))
-    );
+    let deletedSaleIds = new Set<string>();
+    let deletedPurchaseIds = new Set<string>();
+
+    const [deletedSalesRes, deletedPurchasesRes] = await Promise.all([
+      saleIds.length > 0
+        ? supabase.from('sales').select('id').in('id', saleIds).not('deleted_at', 'is', null)
+        : Promise.resolve({ data: [] }),
+      purchaseIds.length > 0
+        ? supabase.from('purchases').select('id').in('id', purchaseIds).not('deleted_at', 'is', null)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    deletedSaleIds = new Set((deletedSalesRes.data || []).map((s: { id: string }) => s.id));
+    deletedPurchaseIds = new Set((deletedPurchasesRes.data || []).map((p: { id: string }) => p.id));
+
+    const filtered = (data || []).filter(t => {
+      if (t.reference_type === 'sale' && t.reference_id && deletedSaleIds.has(t.reference_id)) return false;
+      if (t.reference_type === 'purchase' && t.reference_id && deletedPurchaseIds.has(t.reference_id)) return false;
+      return true;
+    });
 
     setTransactions(filtered);
     setLoading(false);

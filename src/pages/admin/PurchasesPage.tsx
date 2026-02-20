@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -45,12 +46,14 @@ export default function PurchasesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [supplier, setSupplier] = useState('');
   const [lines, setLines] = useState<PurchaseLine[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<Purchase | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = async () => {
     if (!tenant) return;
     setLoading(true);
     const [purchasesRes, itemsRes] = await Promise.all([
-      supabase.from('purchases').select('*').eq('tenant_id', tenant.id).order('created_at', { ascending: false }),
+      supabase.from('purchases').select('*').eq('tenant_id', tenant.id).is('deleted_at', null).order('created_at', { ascending: false }),
       supabase
         .from('inventory_items')
         .select('id, name, unit, stock_current, cost_avg')
@@ -75,6 +78,25 @@ export default function PurchasesPage() {
   useEffect(() => { if (tenant && isProEnabled) fetchData(); }, [tenant?.id, isProEnabled]);
 
   if (!isProEnabled) return <ProModule />;
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !tenant) return;
+    setDeleting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from('purchases')
+      .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id ?? null })
+      .eq('id', deleteTarget.id)
+      .eq('tenant_id', tenant.id);
+    setDeleting(false);
+    setDeleteTarget(null);
+    if (error) {
+      toast({ title: 'Erro ao excluir compra', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Compra excluída com sucesso.' });
+      fetchData();
+    }
+  };
 
   const addLine = () => {
     if (loading) { toast({ title: 'Aguarde o carregamento dos itens', variant: 'destructive' }); return; }
@@ -216,6 +238,7 @@ export default function PurchasesPage() {
                 <TableHead>Fornecedor</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -229,12 +252,44 @@ export default function PurchasesPage() {
                       {p.status}
                     </span>
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                      onClick={() => setDeleteTarget(p)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir compra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta compra? Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* New Purchase Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
