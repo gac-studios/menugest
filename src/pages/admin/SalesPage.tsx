@@ -49,9 +49,12 @@ export default function SalesPage() {
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
-  const [description, setDescription] = useState('');
-  const [descriptionError, setDescriptionError] = useState('');
   const [lines, setLines] = useState<SaleLine[]>([]);
+
+  // Auto-generated description from selected items
+  const autoDescription = lines.length > 0
+    ? lines.map(l => `${l.item_name} x${l.qty}`).join(', ')
+    : '';
 
   const fetchData = async () => {
     if (!tenant) return;
@@ -71,12 +74,8 @@ export default function SalesPage() {
         .order('name'),
     ]);
 
-    if (salesRes.error) {
-      console.error('Error fetching sales:', salesRes.error);
-    }
-    if (itemsRes.error) {
-      console.error('Error fetching menu items:', itemsRes.error);
-    }
+    if (salesRes.error) console.error('Error fetching sales:', salesRes.error);
+    if (itemsRes.error) console.error('Error fetching menu items:', itemsRes.error);
 
     setSales(salesRes.data || []);
     setMenuItems(itemsRes.data || []);
@@ -88,6 +87,12 @@ export default function SalesPage() {
   }, [tenant, isProEnabled]);
 
   if (!isProEnabled) return <ProModule />;
+
+  const openDialog = () => {
+    setLines([]);
+    setPaymentMethod('dinheiro');
+    setDialogOpen(true);
+  };
 
   const addLine = () => {
     if (menuItems.length === 0) {
@@ -115,10 +120,6 @@ export default function SalesPage() {
 
   const handleConfirm = async () => {
     if (!tenant) return;
-    if (!description.trim()) {
-      setDescriptionError('Descrição é obrigatória');
-      return;
-    }
     if (lines.length === 0) {
       toast({ title: 'Adicione ao menos um item', variant: 'destructive' });
       return;
@@ -126,14 +127,14 @@ export default function SalesPage() {
 
     setSaving(true);
     try {
-      // 1. Insert sale
+      // 1. Insert sale with auto-generated description
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
           tenant_id: tenant.id,
           total: parseFloat(total.toFixed(2)),
           payment_method: paymentMethod,
-          description: description.trim(),
+          description: autoDescription,
         })
         .select('id')
         .single();
@@ -154,9 +155,7 @@ export default function SalesPage() {
       }));
 
       const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
-      if (itemsError) {
-        console.error('Error inserting sale items:', itemsError);
-      }
+      if (itemsError) console.error('Error inserting sale items:', itemsError);
 
       // 3. Financial transaction (income)
       const { error: finError } = await supabase.from('financial_transactions').insert({
@@ -167,16 +166,12 @@ export default function SalesPage() {
         reference_id: sale.id,
         reference_type: 'sale',
       });
-      if (finError) {
-        console.error('Error inserting financial transaction:', finError);
-      }
+      if (finError) console.error('Error inserting financial transaction:', finError);
 
       toast({ title: 'Venda registrada com sucesso!' });
       setDialogOpen(false);
       setLines([]);
       setPaymentMethod('dinheiro');
-      setDescription('');
-      setDescriptionError('');
       fetchData();
     } catch (err: any) {
       toast({ title: 'Erro inesperado', description: err?.message || 'Tente novamente', variant: 'destructive' });
@@ -192,7 +187,7 @@ export default function SalesPage() {
           <h1 className="text-2xl font-bold text-foreground">Vendas</h1>
           <p className="text-muted-foreground text-sm">Registre vendas manuais e acompanhe o histórico</p>
         </div>
-        <Button onClick={() => { setDialogOpen(true); setLines([]); setPaymentMethod('dinheiro'); setDescription(''); setDescriptionError(''); }} className="gap-2">
+        <Button onClick={openDialog} className="gap-2">
           <Plus size={16} /> Nova Venda
         </Button>
       </div>
@@ -221,7 +216,7 @@ export default function SalesPage() {
               {sales.map(s => (
                 <TableRow key={s.id}>
                   <TableCell className="whitespace-nowrap">{new Date(s.created_at).toLocaleDateString('pt-BR')}</TableCell>
-                  <TableCell className="max-w-[200px] truncate text-muted-foreground">{s.description || '-'}</TableCell>
+                  <TableCell className="max-w-[240px] truncate text-muted-foreground">{s.description || '-'}</TableCell>
                   <TableCell>{paymentLabels[s.payment_method] || s.payment_method}</TableCell>
                   <TableCell className="text-right font-semibold">R$ {Number(s.total).toFixed(2)}</TableCell>
                 </TableRow>
@@ -238,16 +233,6 @@ export default function SalesPage() {
             <DialogTitle>Nova Venda</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <div>
-              <Label>Descrição <span className="text-destructive">*</span></Label>
-              <Input
-                value={description}
-                onChange={e => { setDescription(e.target.value); if (descriptionError) setDescriptionError(''); }}
-                placeholder="Ex: Smash Burger + Coca-Cola"
-                className={`mt-1 ${descriptionError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
-              />
-              {descriptionError && <p className="text-xs text-destructive mt-1">{descriptionError}</p>}
-            </div>
             <div>
               <Label>Forma de Pagamento</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -307,6 +292,10 @@ export default function SalesPage() {
                       </Button>
                     </div>
                   ))}
+                  {/* Preview of auto-generated description */}
+                  <p className="text-xs text-muted-foreground px-1">
+                    <span className="font-medium">Descrição gerada:</span> {autoDescription}
+                  </p>
                 </div>
               )}
             </div>
