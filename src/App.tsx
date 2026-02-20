@@ -8,6 +8,7 @@ import { CartProvider } from "@/contexts/CartContext";
 import { useTenant } from "@/hooks/useTenant";
 import { useAppAdmin } from "@/hooks/useAppAdmin";
 import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 // Pages
 import Index from "./pages/Index";
@@ -70,6 +71,17 @@ function ProtectedRoute({ children, skipTenantCheck }: { children: React.ReactNo
 function PlanRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { hasNoPlan, loading: tenantLoading, fetchError, refetch } = useTenant();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!loading && !tenantLoading && !fetchError && user && hasNoPlan) {
+      toast({
+        title: 'Recurso bloqueado',
+        description: 'Recurso disponível apenas com plano ativo.',
+        variant: 'destructive',
+      });
+    }
+  }, [loading, tenantLoading, fetchError, user, hasNoPlan]);
 
   if (loading || tenantLoading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;

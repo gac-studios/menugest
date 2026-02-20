@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
   { label: 'Vendas', path: '/sales', icon: <DollarSign size={20} />, pro: true, requiresPlan: true },
   { label: 'Financeiro', path: '/reports/financial', icon: <BarChart3 size={20} />, pro: true, requiresPlan: true },
   { label: 'Usuários', path: '/settings/users', icon: <Users size={20} />, requiresPlan: true },
+  // Configurações is always accessible — no requiresPlan
   { label: 'Configurações', path: '/settings/company', icon: <Settings size={20} /> },
 ];
 
