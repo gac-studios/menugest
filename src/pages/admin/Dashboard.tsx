@@ -14,7 +14,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
-  const { tenant, hasActivePlan, isProEnabled, refetch } = useTenant();
+  const { tenant, hasNoPlan, hasActivePlan, isProEnabled, refetch } = useTenant();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -110,8 +110,28 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* No active plan banner */}
-      {!hasActivePlan && (
+      {/* No plan banner (plan='none') */}
+      {hasNoPlan && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl p-5 flex items-center justify-between bg-primary/10 border border-primary/30"
+        >
+          <div className="flex items-center gap-3">
+            <Crown size={24} className="text-primary" />
+            <div>
+              <p className="font-semibold text-foreground">Assine um plano para liberar recursos</p>
+              <p className="text-sm text-muted-foreground">Cardápio, promoções, estoque e muito mais</p>
+            </div>
+          </div>
+          <Link to="/plans">
+            <Button size="sm" className="gradient-primary text-primary-foreground border-0">Ver Planos</Button>
+          </Link>
+        </motion.div>
+      )}
+
+      {/* No active plan banner (has plan but inactive) */}
+      {!hasNoPlan && !hasActivePlan && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -131,7 +151,7 @@ export default function Dashboard() {
       )}
 
       {/* Pro upgrade banner - only show when has active basic plan */}
-      {hasActivePlan && !isProEnabled && (
+      {!hasNoPlan && hasActivePlan && !isProEnabled && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}

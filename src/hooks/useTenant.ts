@@ -8,6 +8,7 @@ interface UseTenantResult {
   tenantUser: TenantUser | null;
   loading: boolean;
   hasTenant: boolean;
+  hasNoPlan: boolean;
   hasActivePlan: boolean;
   isProEnabled: boolean;
   refetch: () => Promise<void>;
@@ -62,6 +63,7 @@ export function useTenant(): UseTenantResult {
   }, [user]);
 
   const hasTenant = !!tenantUser;
+  const hasNoPlan = !tenant?.plan || tenant.plan === 'none';
   const hasActivePlan = tenant?.subscription_status === 'active' && tenant?.is_active === true;
   const isProEnabled = tenant?.plan === 'pro' && hasActivePlan;
 
@@ -70,6 +72,7 @@ export function useTenant(): UseTenantResult {
     tenantUser,
     loading,
     hasTenant,
+    hasNoPlan,
     hasActivePlan,
     isProEnabled,
     refetch: fetchTenant,
