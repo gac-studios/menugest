@@ -35,13 +35,30 @@ import Checkout from "./pages/public/Checkout";
 
 const queryClient = new QueryClient();
 
+const Spinner = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 function ProtectedRoute({ children, skipTenantCheck }: { children: React.ReactNode; skipTenantCheck?: boolean }) {
   const { user, loading } = useAuth();
   const { hasTenant, loading: tenantLoading } = useTenant();
 
-  if (loading || tenantLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading || tenantLoading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
   if (!skipTenantCheck && !hasTenant) return <Navigate to="/onboarding" replace />;
+  return <>{children}</>;
+}
+
+/** Blocks access to routes that require at least a basic/pro plan */
+function PlanRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const { hasNoPlan, loading: tenantLoading } = useTenant();
+
+  if (loading || tenantLoading) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (hasNoPlan) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -104,24 +121,28 @@ const App = () => (
               {/* Admin */}
               <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/menu/categories" element={<MenuCategories />} />
-                <Route path="/menu/items" element={<MenuItems />} />
-                <Route path="/menu/items/new" element={<MenuItems />} />
-                <Route path="/menu/items/:id/edit" element={<MenuItems />} />
-                <Route path="/promotions" element={<Promotions />} />
-                <Route path="/promotions/new" element={<div className="text-foreground">Nova promoção — em breve</div>} />
-                <Route path="/promotions/:id/edit" element={<div className="text-foreground">Editar promoção — em breve</div>} />
+
+                {/* Plan-gated routes (require at least basic/pro plan) */}
+                <Route path="/menu/categories" element={<PlanRoute><MenuCategories /></PlanRoute>} />
+                <Route path="/menu/items" element={<PlanRoute><MenuItems /></PlanRoute>} />
+                <Route path="/menu/items/new" element={<PlanRoute><MenuItems /></PlanRoute>} />
+                <Route path="/menu/items/:id/edit" element={<PlanRoute><MenuItems /></PlanRoute>} />
+                <Route path="/promotions" element={<PlanRoute><Promotions /></PlanRoute>} />
+                <Route path="/promotions/new" element={<PlanRoute><div className="text-foreground">Nova promoção — em breve</div></PlanRoute>} />
+                <Route path="/promotions/:id/edit" element={<PlanRoute><div className="text-foreground">Editar promoção — em breve</div></PlanRoute>} />
+                <Route path="/settings/users" element={<PlanRoute><UsersPage /></PlanRoute>} />
+
+                {/* Settings (always accessible) */}
                 <Route path="/settings/company" element={<Settings />} />
                 <Route path="/settings/branding" element={<Settings />} />
                 <Route path="/settings/whatsapp" element={<Settings />} />
                 <Route path="/settings/business-hours" element={<Settings />} />
-                <Route path="/settings/users" element={<UsersPage />} />
 
                 {/* Pro modules */}
-                <Route path="/inventory" element={<InventoryPage />} />
-                <Route path="/purchases" element={<PurchasesPage />} />
-                <Route path="/sales" element={<SalesPage />} />
-                <Route path="/reports/financial" element={<FinancialPage />} />
+                <Route path="/inventory" element={<PlanRoute><InventoryPage /></PlanRoute>} />
+                <Route path="/purchases" element={<PlanRoute><PurchasesPage /></PlanRoute>} />
+                <Route path="/sales" element={<PlanRoute><SalesPage /></PlanRoute>} />
+                <Route path="/reports/financial" element={<PlanRoute><FinancialPage /></PlanRoute>} />
 
                 {/* Super Admin (protected by SuperAdminRoute rendered inside) */}
                 <Route path="/superadmin/clients" element={<SuperAdminRoute><SuperAdminClients /></SuperAdminRoute>} />

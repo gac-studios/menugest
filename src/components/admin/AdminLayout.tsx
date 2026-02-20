@@ -5,40 +5,55 @@ import { useTenant } from '@/hooks/useTenant';
 import { useAppAdmin } from '@/hooks/useAppAdmin';
 import {
   LayoutDashboard, UtensilsCrossed, Tag, Settings, Package, ShoppingCart,
-  DollarSign, BarChart3, Users, Menu, X, LogOut, Crown, ChevronDown, ShieldCheck
+  DollarSign, BarChart3, Users, Menu, X, LogOut, Crown, ChevronDown,
+  ShieldCheck, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
   pro?: boolean;
+  /** blocked for plan='none' users (everything except dashboard & settings) */
+  requiresPlan?: boolean;
   children?: { label: string; path: string }[];
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} /> },
-  { label: 'Cardápio', path: '/menu/categories', icon: <UtensilsCrossed size={20} />, children: [
-    { label: 'Categorias', path: '/menu/categories' },
-    { label: 'Itens', path: '/menu/items' },
-  ]},
-  { label: 'Promoções', path: '/promotions', icon: <Tag size={20} /> },
-  { label: 'Estoque', path: '/inventory', icon: <Package size={20} />, pro: true },
-  { label: 'Compras', path: '/purchases', icon: <ShoppingCart size={20} />, pro: true },
-  { label: 'Vendas', path: '/sales', icon: <DollarSign size={20} />, pro: true },
-  { label: 'Financeiro', path: '/reports/financial', icon: <BarChart3 size={20} />, pro: true },
-  { label: 'Usuários', path: '/settings/users', icon: <Users size={20} /> },
+  {
+    label: 'Cardápio', path: '/menu/categories', icon: <UtensilsCrossed size={20} />,
+    requiresPlan: true,
+    children: [
+      { label: 'Categorias', path: '/menu/categories' },
+      { label: 'Itens', path: '/menu/items' },
+    ],
+  },
+  { label: 'Promoções', path: '/promotions', icon: <Tag size={20} />, requiresPlan: true },
+  { label: 'Estoque', path: '/inventory', icon: <Package size={20} />, pro: true, requiresPlan: true },
+  { label: 'Compras', path: '/purchases', icon: <ShoppingCart size={20} />, pro: true, requiresPlan: true },
+  { label: 'Vendas', path: '/sales', icon: <DollarSign size={20} />, pro: true, requiresPlan: true },
+  { label: 'Financeiro', path: '/reports/financial', icon: <BarChart3 size={20} />, pro: true, requiresPlan: true },
+  { label: 'Usuários', path: '/settings/users', icon: <Users size={20} />, requiresPlan: true },
   { label: 'Configurações', path: '/settings/company', icon: <Settings size={20} /> },
 ];
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
-  const { isProEnabled } = useTenant();
+  const { isProEnabled, hasNoPlan } = useTenant();
   const { isAppAdmin } = useAppAdmin();
 
   const toggleExpanded = (label: string) => {
@@ -47,12 +62,62 @@ export default function AdminLayout() {
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
+  const handleNavClick = (item: NavItem) => {
+    // Blocked for no-plan users
+    if (hasNoPlan && item.requiresPlan) {
+      setPlanModalOpen(true);
+      return;
+    }
+    // Pro lock
+    if (item.pro && !isProEnabled) {
+      navigate('/plans');
+      return;
+    }
+    if (item.children) {
+      toggleExpanded(item.label);
+    } else {
+      navigate(item.path);
+      setSidebarOpen(false);
+    }
+  };
+
+  const isItemLocked = (item: NavItem) => {
+    if (hasNoPlan && item.requiresPlan) return 'none';
+    if (item.pro && !isProEnabled) return 'pro';
+    return null;
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-foreground/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
+
+      {/* No-plan modal */}
+      <Dialog open={planModalOpen} onOpenChange={setPlanModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock size={18} className="text-primary" /> Recurso bloqueado
+            </DialogTitle>
+            <DialogDescription>
+              Assine um plano para liberar este recurso e começar a usar o MenuGest completo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setPlanModalOpen(false)}>
+              Fechar
+            </Button>
+            <Button
+              className="flex-1 gradient-primary text-primary-foreground border-0"
+              onClick={() => { setPlanModalOpen(false); navigate('/plans'); }}
+            >
+              Ver Planos
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground transform transition-transform duration-300 lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -73,22 +138,12 @@ export default function AdminLayout() {
           {/* Nav */}
           <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             {navItems.map((item) => {
-              const locked = item.pro && !isProEnabled;
+              const lockType = isItemLocked(item);
+              const locked = !!lockType;
               return (
                 <div key={item.label}>
                   <button
-                    onClick={() => {
-                      if (locked) {
-                        navigate('/plans');
-                        return;
-                      }
-                      if (item.children) {
-                        toggleExpanded(item.label);
-                      } else {
-                        navigate(item.path);
-                        setSidebarOpen(false);
-                      }
-                    }}
+                    onClick={() => handleNavClick(item)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                       isActive(item.path)
                         ? 'bg-sidebar-primary text-sidebar-primary-foreground'
@@ -97,10 +152,13 @@ export default function AdminLayout() {
                   >
                     {item.icon}
                     <span className="flex-1 text-left">{item.label}</span>
-                    {locked && <Crown size={14} className="text-pro" />}
-                    {item.children && <ChevronDown size={14} className={`transition-transform ${expandedItems.includes(item.label) ? 'rotate-180' : ''}`} />}
+                    {lockType === 'none' && <Lock size={14} className="text-muted-foreground" />}
+                    {lockType === 'pro' && <Crown size={14} className="text-pro" />}
+                    {!locked && item.children && (
+                      <ChevronDown size={14} className={`transition-transform ${expandedItems.includes(item.label) ? 'rotate-180' : ''}`} />
+                    )}
                   </button>
-                  {item.children && expandedItems.includes(item.label) && (
+                  {!locked && item.children && expandedItems.includes(item.label) && (
                     <div className="ml-8 mt-1 space-y-1">
                       {item.children.map(child => (
                         <Link
@@ -158,8 +216,20 @@ export default function AdminLayout() {
             )}
           </nav>
 
-          {/* Upgrade banner */}
-          {!isProEnabled && (
+          {/* Sidebar bottom banner */}
+          {hasNoPlan ? (
+            <div className="mx-3 mb-3 p-4 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-sm font-semibold text-sidebar-accent-foreground">Sem plano ativo</p>
+              <p className="text-xs text-sidebar-foreground/70 mt-1">Assine para liberar todos os recursos</p>
+              <Button
+                size="sm"
+                className="mt-3 w-full text-xs gradient-primary text-primary-foreground border-0"
+                onClick={() => navigate('/plans')}
+              >
+                Ver Planos
+              </Button>
+            </div>
+          ) : !isProEnabled ? (
             <div className="mx-3 mb-3 p-4 rounded-lg gradient-pro">
               <p className="text-sm font-semibold text-pro-foreground">Plano Pro</p>
               <p className="text-xs text-pro-foreground/80 mt-1">Desbloqueie gestão completa</p>
@@ -172,7 +242,7 @@ export default function AdminLayout() {
                 <Crown size={14} className="mr-1" /> Upgrade
               </Button>
             </div>
-          )}
+          ) : null}
 
           {/* User */}
           <div className="border-t border-sidebar-border px-4 py-3">

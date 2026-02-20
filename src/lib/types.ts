@@ -1,4 +1,4 @@
-export type PlanType = 'basic' | 'pro';
+export type PlanType = 'none' | 'basic' | 'pro';
 export type UserRole = 'owner' | 'staff';
 export type PaymentMethod = 'pix' | 'dinheiro' | 'credito' | 'debito';
 

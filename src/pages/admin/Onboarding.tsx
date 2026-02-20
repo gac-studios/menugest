@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { UtensilsCrossed, Check, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
@@ -16,7 +15,6 @@ export default function Onboarding() {
   const [slug, setSlug] = useState('');
   const [phone, setPhone] = useState('');
   const [description, setDescription] = useState('');
-  const [plan, setPlan] = useState<'basic' | 'pro'>('basic');
   const [loading, setLoading] = useState(false);
   const [slugError, setSlugError] = useState('');
   const [slugChecking, setSlugChecking] = useState(false);
@@ -97,7 +95,6 @@ export default function Onboarding() {
     if (!user) return;
     setLoading(true);
     try {
-      // Check session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         toast({ title: 'Sessão expirada', description: 'Faça login novamente.', variant: 'destructive' });
@@ -105,23 +102,16 @@ export default function Onboarding() {
         return;
       }
 
-      // Debug logs
-      const userResult = await supabase.auth.getUser();
-      console.log('user', userResult.data.user?.id);
-      console.log('hasToken', !!session?.access_token);
-
-      // Call RPC to create tenant + tenant_user atomically
+      // Create tenant with plan='none' and subscription_status='inactive'
       const { data: tenantId, error } = await supabase.rpc('create_tenant', {
         p_name: name,
         p_slug: slug,
         p_phone_whatsapp: phone,
-        p_plan: plan,
+        p_plan: 'none',
         p_description: description || null,
       });
 
       if (error) throw error;
-
-      console.log('tenantId', tenantId);
 
       // Upsert profile (non-critical)
       const { error: profileError } = await supabase
@@ -134,16 +124,7 @@ export default function Onboarding() {
 
       if (profileError) console.error('Profile upsert error:', profileError);
 
-      toast({ title: 'Empresa criada!', description: 'Seu cardápio digital está pronto.' });
-
-      // If pro was selected, show WhatsApp CTA
-      if (plan === 'pro') {
-        const msg = encodeURIComponent(
-          `Olá, quero contratar o Plano Pro do MenuGest.\n\nEmpresa: ${name}\nSlug: ${slug}\nEmail: ${user.email}\nPlano escolhido: Pro (R$ 99,90/mês)`
-        );
-        window.open(`https://wa.me/553432466279?text=${msg}`, '_blank');
-      }
-
+      toast({ title: 'Empresa criada!', description: 'Escolha um plano para liberar os recursos.' });
       navigate('/dashboard');
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
@@ -210,21 +191,6 @@ export default function Onboarding() {
                 <Label>Descrição (opcional)</Label>
                 <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Descreva seu negócio..." className="mt-1.5" rows={3} maxLength={500} />
               </div>
-              <div>
-                <Label>Plano desejado</Label>
-                <RadioGroup value={plan} onValueChange={(v) => setPlan(v as 'basic' | 'pro')} className="mt-2 grid grid-cols-2 gap-3">
-                  <label className={`flex flex-col items-center gap-1 p-4 rounded-xl border-2 cursor-pointer transition-colors ${plan === 'basic' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                    <RadioGroupItem value="basic" className="sr-only" />
-                    <span className="text-sm font-semibold text-foreground">Básico</span>
-                    <span className="text-xs text-muted-foreground">R$ 49,90/mês</span>
-                  </label>
-                  <label className={`flex flex-col items-center gap-1 p-4 rounded-xl border-2 cursor-pointer transition-colors ${plan === 'pro' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                    <RadioGroupItem value="pro" className="sr-only" />
-                    <span className="text-sm font-semibold text-foreground">Pro ⭐</span>
-                    <span className="text-xs text-muted-foreground">R$ 99,90/mês</span>
-                  </label>
-                </RadioGroup>
-              </div>
             </div>
             <Button onClick={handleContinue} className="w-full gradient-primary text-primary-foreground border-0" size="lg" disabled={!isStep1Valid}>
               Continuar
@@ -236,19 +202,16 @@ export default function Onboarding() {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Confirme seus dados</h1>
-              <p className="text-muted-foreground text-sm mt-1">Revise antes de criar seu cardápio</p>
+              <p className="text-muted-foreground text-sm mt-1">Revise antes de criar seu negócio</p>
             </div>
             <div className="bg-card rounded-xl p-5 shadow-card border border-border/50 space-y-3">
               <div className="flex justify-between"><span className="text-sm text-muted-foreground">Nome</span><span className="text-sm font-medium text-foreground">{name}</span></div>
               <div className="flex justify-between"><span className="text-sm text-muted-foreground">URL</span><span className="text-sm font-medium text-primary">{slug}.menugest.com</span></div>
               <div className="flex justify-between"><span className="text-sm text-muted-foreground">WhatsApp</span><span className="text-sm font-medium text-foreground">{phone}</span></div>
-              <div className="flex justify-between"><span className="text-sm text-muted-foreground">Plano</span><span className="text-sm font-medium text-primary">{plan === 'pro' ? 'Pro ⭐' : 'Básico'}</span></div>
             </div>
-            {plan === 'pro' && (
-              <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-                Ao clicar em "Criar Empresa", você será direcionado ao WhatsApp para finalizar a contratação do Plano Pro. O plano será ativado após confirmação do pagamento.
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+              Após criar seu negócio, escolha um plano no Dashboard para liberar os recursos do sistema.
+            </p>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep(1)} className="flex-1" size="lg">Voltar</Button>
               <Button onClick={handleSubmit} className="flex-1 gradient-primary text-primary-foreground border-0" size="lg" disabled={loading}>
