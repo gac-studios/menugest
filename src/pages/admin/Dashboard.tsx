@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShoppingCart, TrendingUp, Package, DollarSign, Crown, ExternalLink, AlertCircle } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Package, DollarSign, Crown, ExternalLink, AlertCircle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTenant } from '@/hooks/useTenant';
 import { supabase } from '@/lib/supabase';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 interface DashboardStats {
   menuItems: number;
@@ -15,8 +22,10 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { tenant, hasNoPlan, hasActivePlan, isProEnabled, refetch } = useTenant();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
 
   useEffect(() => {
     refetch();
@@ -67,6 +76,15 @@ export default function Dashboard() {
     }
   };
 
+  /** Navigate or open plan modal depending on plan state */
+  const handleQuickAction = (path: string) => {
+    if (hasNoPlan) {
+      setPlanModalOpen(true);
+    } else {
+      navigate(path);
+    }
+  };
+
   const statCards = [
     {
       label: 'Itens no cardápio',
@@ -96,6 +114,31 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Plan modal */}
+      <Dialog open={planModalOpen} onOpenChange={setPlanModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock size={18} className="text-primary" /> Recurso bloqueado
+            </DialogTitle>
+            <DialogDescription>
+              Assine um plano para liberar este recurso e começar a usar o MenuGest completo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setPlanModalOpen(false)}>
+              Fechar
+            </Button>
+            <Button
+              className="flex-1 gradient-primary text-primary-foreground border-0"
+              onClick={() => { setPlanModalOpen(false); navigate('/plans'); }}
+            >
+              Ver Planos
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
@@ -195,24 +238,33 @@ export default function Dashboard() {
       <div className="bg-card rounded-xl p-6 shadow-card border border-border/50">
         <h2 className="text-lg font-semibold text-foreground mb-4">Ações rápidas</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Link to="/menu/items">
-            <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
-              <Package size={20} />
-              <span className="text-xs">Gerenciar Itens</span>
-            </Button>
-          </Link>
-          <Link to="/menu/categories">
-            <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
-              <TrendingUp size={20} />
-              <span className="text-xs">Categorias</span>
-            </Button>
-          </Link>
-          <Link to="/promotions">
-            <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
-              <DollarSign size={20} />
-              <span className="text-xs">Promoções</span>
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            className="h-auto py-4 flex-col gap-2 relative"
+            onClick={() => handleQuickAction('/menu/items')}
+          >
+            <Package size={20} />
+            <span className="text-xs">Gerenciar Itens</span>
+            {hasNoPlan && <Lock size={12} className="absolute top-2 right-2 text-muted-foreground" />}
+          </Button>
+          <Button
+            variant="outline"
+            className="h-auto py-4 flex-col gap-2 relative"
+            onClick={() => handleQuickAction('/menu/categories')}
+          >
+            <TrendingUp size={20} />
+            <span className="text-xs">Categorias</span>
+            {hasNoPlan && <Lock size={12} className="absolute top-2 right-2 text-muted-foreground" />}
+          </Button>
+          <Button
+            variant="outline"
+            className="h-auto py-4 flex-col gap-2 relative"
+            onClick={() => handleQuickAction('/promotions')}
+          >
+            <DollarSign size={20} />
+            <span className="text-xs">Promoções</span>
+            {hasNoPlan && <Lock size={12} className="absolute top-2 right-2 text-muted-foreground" />}
+          </Button>
           <Link to="/settings/company">
             <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
               <ExternalLink size={20} />
