@@ -4,9 +4,10 @@ import { useTenant } from '@/hooks/useTenant';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
+import { useToast } from '@/hooks/use-toast';
 import ProModule from './ProModule';
 
 interface Transaction {
@@ -20,6 +21,13 @@ interface Transaction {
   created_at: string;
 }
 
+interface SaleExport {
+  created_at: string;
+  description: string | null;
+  payment_method: string;
+  total: number;
+}
+
 const months = [
   { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
   { value: '03', label: 'Março' }, { value: '04', label: 'Abril' },
@@ -29,23 +37,37 @@ const months = [
   { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' },
 ];
 
+const paymentLabels: Record<string, string> = {
+  dinheiro: 'Dinheiro',
+  pix: 'PIX',
+  credito: 'Crédito',
+  debito: 'Débito',
+};
+
 export default function FinancialPage() {
   const { tenant, isProEnabled } = useTenant();
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
 
-  const fetchTransactions = async () => {
-    if (!tenant) return;
-    setLoading(true);
+  const getDateRange = () => {
     const startDate = `${selectedYear}-${selectedMonth}-01`;
     const endMonth = parseInt(selectedMonth);
     const endYear = parseInt(selectedYear);
     const nextMonth = endMonth === 12 ? 1 : endMonth + 1;
     const nextYear = endMonth === 12 ? endYear + 1 : endYear;
     const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+    return { startDate, endDate };
+  };
+
+  const fetchTransactions = async () => {
+    if (!tenant) return;
+    setLoading(true);
+    const { startDate, endDate } = getDateRange();
 
     const { data, error } = await supabase
       .from('financial_transactions')
@@ -56,7 +78,27 @@ export default function FinancialPage() {
       .order('created_at', { ascending: false });
 
     if (error) console.error('Error fetching transactions:', error);
-    setTransactions(data || []);
+
+    // Filter out transactions linked to soft-deleted sales
+    const allIds = (data || [])
+      .filter(t => t.reference_type === 'sale' && t.reference_id)
+      .map(t => t.reference_id as string);
+
+    let deletedSaleIds = new Set<string>();
+    if (allIds.length > 0) {
+      const { data: deletedSales } = await supabase
+        .from('sales')
+        .select('id')
+        .in('id', allIds)
+        .not('deleted_at', 'is', null);
+      deletedSaleIds = new Set((deletedSales || []).map(s => s.id));
+    }
+
+    const filtered = (data || []).filter(t =>
+      !(t.reference_type === 'sale' && t.reference_id && deletedSaleIds.has(t.reference_id))
+    );
+
+    setTransactions(filtered);
     setLoading(false);
   };
 
@@ -80,6 +122,57 @@ export default function FinancialPage() {
 
   const years = Array.from({ length: 3 }, (_, i) => String(now.getFullYear() - i));
 
+  const handleExportCSV = async () => {
+    if (!tenant) return;
+    setExporting(true);
+    try {
+      const { startDate, endDate } = getDateRange();
+
+      const { data: sales, error } = await supabase
+        .from('sales')
+        .select('created_at, description, payment_method, total')
+        .eq('tenant_id', tenant.id)
+        .is('deleted_at', null)
+        .gte('created_at', startDate)
+        .lt('created_at', endDate)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        toast({ title: 'Erro ao exportar', description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      if (!sales || sales.length === 0) {
+        toast({ title: 'Não existem vendas no mês selecionado.' });
+        return;
+      }
+
+      const header = 'Data;Descrição;Pagamento;Total';
+      const rows = (sales as SaleExport[]).map(s => {
+        const date = new Date(s.created_at).toLocaleDateString('pt-BR');
+        const description = (s.description || '-').replace(/;/g, ',');
+        const payment = paymentLabels[s.payment_method] || s.payment_method;
+        const total = Number(s.total).toFixed(2).replace('.', ',');
+        return `${date};${description};${payment};${total}`;
+      });
+
+      const csvContent = '\uFEFF' + [header, ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `relatorio-financeiro-${selectedYear}-${selectedMonth}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ title: 'Erro inesperado', description: err?.message || 'Tente novamente', variant: 'destructive' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (!isProEnabled) return <ProModule />;
 
   return (
@@ -89,7 +182,7 @@ export default function FinancialPage() {
           <h1 className="text-2xl font-bold text-foreground">Financeiro</h1>
           <p className="text-muted-foreground text-sm">Relatório mensal de receitas e despesas</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -102,6 +195,10 @@ export default function FinancialPage() {
               {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={handleExportCSV} disabled={exporting} className="gap-2">
+            <Download size={16} />
+            {exporting ? 'Exportando...' : 'Exportar Excel'}
+          </Button>
         </div>
       </div>
 
