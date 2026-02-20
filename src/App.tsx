@@ -41,12 +41,27 @@ const Spinner = () => (
   </div>
 );
 
+function TenantErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background p-8 text-center">
+      <p className="text-destructive font-medium">{message}</p>
+      <button
+        onClick={onRetry}
+        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+      >
+        Tentar novamente
+      </button>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children, skipTenantCheck }: { children: React.ReactNode; skipTenantCheck?: boolean }) {
   const { user, loading } = useAuth();
-  const { hasTenant, loading: tenantLoading } = useTenant();
+  const { hasTenant, loading: tenantLoading, fetchError, refetch } = useTenant();
 
   if (loading || tenantLoading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
+  if (fetchError) return <TenantErrorScreen message={fetchError} onRetry={refetch} />;
   if (!skipTenantCheck && !hasTenant) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
@@ -54,20 +69,24 @@ function ProtectedRoute({ children, skipTenantCheck }: { children: React.ReactNo
 /** Blocks access to routes that require at least a basic/pro plan */
 function PlanRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const { hasNoPlan, loading: tenantLoading } = useTenant();
+  const { hasNoPlan, loading: tenantLoading, fetchError, refetch } = useTenant();
 
   if (loading || tenantLoading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
+  if (fetchError) return <TenantErrorScreen message={fetchError} onRetry={refetch} />;
   if (hasNoPlan) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
 function OnboardingRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const { hasTenant, loading: tenantLoading } = useTenant();
+  const { hasTenant, loading: tenantLoading, fetchError, refetch } = useTenant();
 
-  if (loading || tenantLoading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading || tenantLoading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
+  // If there was a real query error, show it — never assume "no tenant" on error
+  if (fetchError) return <TenantErrorScreen message={fetchError} onRetry={refetch} />;
+  // Only redirect to dashboard if we CONFIRMED the user has a tenant
   if (hasTenant) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
