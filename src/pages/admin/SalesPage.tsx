@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +19,7 @@ interface Sale {
   payment_method: string;
   description?: string | null;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 interface MenuItemOption {
@@ -50,6 +52,8 @@ export default function SalesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
   const [lines, setLines] = useState<SaleLine[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<Sale | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Auto-generated description from selected items
   const autoDescription = lines.length > 0
@@ -64,6 +68,7 @@ export default function SalesPage() {
         .from('sales')
         .select('*')
         .eq('tenant_id', tenant.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       supabase
         .from('menu_items')
@@ -127,7 +132,6 @@ export default function SalesPage() {
 
     setSaving(true);
     try {
-      // 1. Insert sale with auto-generated description
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
@@ -144,7 +148,6 @@ export default function SalesPage() {
         return;
       }
 
-      // 2. Insert sale items
       const saleItems = lines.map(l => ({
         tenant_id: tenant.id,
         sale_id: sale.id,
@@ -157,7 +160,6 @@ export default function SalesPage() {
       const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
       if (itemsError) console.error('Error inserting sale items:', itemsError);
 
-      // 3. Financial transaction (income)
       const { error: finError } = await supabase.from('financial_transactions').insert({
         tenant_id: tenant.id,
         type: 'income',
@@ -177,6 +179,34 @@ export default function SalesPage() {
       toast({ title: 'Erro inesperado', description: err?.message || 'Tente novamente', variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from('sales')
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user?.id ?? null,
+        })
+        .eq('id', deleteTarget.id);
+
+      if (error) {
+        toast({ title: 'Erro ao excluir venda', description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      toast({ title: 'Venda excluída com sucesso!' });
+      setDeleteTarget(null);
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Erro inesperado', description: err?.message || 'Tente novamente', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -210,6 +240,7 @@ export default function SalesPage() {
                 <TableHead>Descrição</TableHead>
                 <TableHead>Pagamento</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -219,6 +250,16 @@ export default function SalesPage() {
                   <TableCell className="max-w-[240px] truncate text-muted-foreground">{s.description || '-'}</TableCell>
                   <TableCell>{paymentLabels[s.payment_method] || s.payment_method}</TableCell>
                   <TableCell className="text-right font-semibold">R$ {Number(s.total).toFixed(2)}</TableCell>
+                  <TableCell>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteTarget(s)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -292,7 +333,6 @@ export default function SalesPage() {
                       </Button>
                     </div>
                   ))}
-                  {/* Preview of auto-generated description */}
                   <p className="text-xs text-muted-foreground px-1">
                     <span className="font-medium">Descrição gerada:</span> {autoDescription}
                   </p>
@@ -309,6 +349,28 @@ export default function SalesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir venda?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta venda? Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
