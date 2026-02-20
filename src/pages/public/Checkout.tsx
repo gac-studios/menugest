@@ -14,12 +14,28 @@ export default function Checkout() {
   const { slug } = useParams<{ slug: string }>();
   const { items, updateQuantity, updateObservation, removeItem, clearCart, total, itemCount } = useCart();
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [orderType, setOrderType] = useState<'retirada' | 'entrega'>('retirada');
   const [address, setAddress] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [tenantData, setTenantData] = useState<{ name: string; whatsapp_phone?: string | null } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    return value;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value);
+    setCustomerPhone(formatted);
+    if (phoneError) setPhoneError('');
+  };
 
   // Fetch tenant info from slug so page is self-contained after WhatsApp redirect
   useEffect(() => {
@@ -40,13 +56,21 @@ export default function Checkout() {
   const handleSendWhatsApp = () => {
     if (items.length === 0) return;
 
+    // Validate phone
+    const digits = customerPhone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setPhoneError('Informe um telefone válido com DDD');
+      return;
+    }
+
     const message = buildOrderMessage(
       storeName,
       items,
       customerName || undefined,
       orderType,
       orderType === 'entrega' ? address || undefined : undefined,
-      generalNote || undefined
+      generalNote || undefined,
+      customerPhone
     );
 
     openWhatsApp(storePhone, message);
@@ -123,6 +147,17 @@ export default function Checkout() {
           <div>
             <Label className="text-xs">Nome</Label>
             <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Seu nome" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs">Telefone <span className="text-destructive">*</span></Label>
+            <Input
+              type="tel"
+              value={customerPhone}
+              onChange={handlePhoneChange}
+              placeholder="(00) 00000-0000"
+              className={`mt-1 ${phoneError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+            />
+            {phoneError && <p className="text-xs text-destructive mt-1">{phoneError}</p>}
           </div>
           <div>
             <Label className="text-xs">Tipo do pedido</Label>

@@ -8,10 +8,26 @@ export function buildOrderMessage(
   customerName?: string,
   orderType?: 'retirada' | 'entrega',
   address?: string,
-  generalNote?: string
+  generalNote?: string,
+  customerPhone?: string
 ): string {
   const lines: string[] = [];
   lines.push(`🍽️ *Pedido - ${storeName}*`);
+  lines.push('');
+
+  if (customerPhone) {
+    lines.push(`📞 *Telefone:* ${customerPhone}`);
+  }
+  if (customerName) {
+    lines.push(`👤 *Cliente:* ${customerName}`);
+  }
+  if (orderType) {
+    lines.push(`📦 *Tipo:* ${orderType === 'retirada' ? 'Retirada no local' : 'Entrega'}`);
+  }
+  if (address) {
+    lines.push(`📍 *Endereço:* ${address}`);
+  }
+
   lines.push('');
   lines.push('📋 *Itens:*');
 
@@ -26,16 +42,6 @@ export function buildOrderMessage(
   lines.push('');
   lines.push(`💰 *Total: R$ ${total.toFixed(2)}*`);
 
-  if (customerName) {
-    lines.push('');
-    lines.push(`👤 *Cliente:* ${customerName}`);
-  }
-  if (orderType) {
-    lines.push(`📦 *Tipo:* ${orderType === 'retirada' ? 'Retirada no local' : 'Entrega'}`);
-  }
-  if (address) {
-    lines.push(`📍 *Endereço:* ${address}`);
-  }
   if (generalNote) {
     lines.push('');
     lines.push(`📝 *Observação:* ${generalNote}`);
