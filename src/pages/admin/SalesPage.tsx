@@ -16,6 +16,7 @@ interface Sale {
   tenant_id: string;
   total: number;
   payment_method: string;
+  description?: string | null;
   created_at: string;
 }
 
@@ -48,6 +49,8 @@ export default function SalesPage() {
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
+  const [description, setDescription] = useState('');
+  const [descriptionError, setDescriptionError] = useState('');
   const [lines, setLines] = useState<SaleLine[]>([]);
 
   const fetchData = async () => {
@@ -112,6 +115,10 @@ export default function SalesPage() {
 
   const handleConfirm = async () => {
     if (!tenant) return;
+    if (!description.trim()) {
+      setDescriptionError('Descrição é obrigatória');
+      return;
+    }
     if (lines.length === 0) {
       toast({ title: 'Adicione ao menos um item', variant: 'destructive' });
       return;
@@ -126,6 +133,7 @@ export default function SalesPage() {
           tenant_id: tenant.id,
           total: parseFloat(total.toFixed(2)),
           payment_method: paymentMethod,
+          description: description.trim(),
         })
         .select('id')
         .single();
@@ -167,6 +175,8 @@ export default function SalesPage() {
       setDialogOpen(false);
       setLines([]);
       setPaymentMethod('dinheiro');
+      setDescription('');
+      setDescriptionError('');
       fetchData();
     } catch (err: any) {
       toast({ title: 'Erro inesperado', description: err?.message || 'Tente novamente', variant: 'destructive' });
@@ -182,7 +192,7 @@ export default function SalesPage() {
           <h1 className="text-2xl font-bold text-foreground">Vendas</h1>
           <p className="text-muted-foreground text-sm">Registre vendas manuais e acompanhe o histórico</p>
         </div>
-        <Button onClick={() => { setDialogOpen(true); setLines([]); setPaymentMethod('dinheiro'); }} className="gap-2">
+        <Button onClick={() => { setDialogOpen(true); setLines([]); setPaymentMethod('dinheiro'); setDescription(''); setDescriptionError(''); }} className="gap-2">
           <Plus size={16} /> Nova Venda
         </Button>
       </div>
@@ -202,6 +212,7 @@ export default function SalesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Data</TableHead>
+                <TableHead>Descrição</TableHead>
                 <TableHead>Pagamento</TableHead>
                 <TableHead className="text-right">Total</TableHead>
               </TableRow>
@@ -209,7 +220,8 @@ export default function SalesPage() {
             <TableBody>
               {sales.map(s => (
                 <TableRow key={s.id}>
-                  <TableCell>{new Date(s.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                  <TableCell className="whitespace-nowrap">{new Date(s.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                  <TableCell className="max-w-[200px] truncate text-muted-foreground">{s.description || '-'}</TableCell>
                   <TableCell>{paymentLabels[s.payment_method] || s.payment_method}</TableCell>
                   <TableCell className="text-right font-semibold">R$ {Number(s.total).toFixed(2)}</TableCell>
                 </TableRow>
@@ -226,6 +238,16 @@ export default function SalesPage() {
             <DialogTitle>Nova Venda</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            <div>
+              <Label>Descrição <span className="text-destructive">*</span></Label>
+              <Input
+                value={description}
+                onChange={e => { setDescription(e.target.value); if (descriptionError) setDescriptionError(''); }}
+                placeholder="Ex: Smash Burger + Coca-Cola"
+                className={`mt-1 ${descriptionError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+              />
+              {descriptionError && <p className="text-xs text-destructive mt-1">{descriptionError}</p>}
+            </div>
             <div>
               <Label>Forma de Pagamento</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
