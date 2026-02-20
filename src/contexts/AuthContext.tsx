@@ -21,11 +21,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Subscribe to auth state changes.
+    // Use setTimeout to avoid deadlocks with Supabase internals —
+    // never await Supabase calls directly inside this callback.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
+      setTimeout(() => {
+        setSession(session);
+        setLoading(false);
+      }, 0);
     });
 
+    // 2. Eagerly load the session on mount (handles page refresh).
+    // This races with onAuthStateChange; whichever resolves first wins,
+    // but both set the same value so there's no inconsistency.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
