@@ -2,11 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { useTenant } from "@/hooks/useTenant";
 import { useAppAdmin } from "@/hooks/useAppAdmin";
+import { useEffect } from "react";
 
 // Pages
 import Index from "./pages/Index";
@@ -64,6 +65,20 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Redirects legacy /checkout to /menu/:slug/checkout using localStorage fallback
+function CheckoutRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const slug = localStorage.getItem('last_menu_slug');
+    if (slug) {
+      navigate(`/menu/${slug}/checkout`, { replace: true });
+    } else {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -113,9 +128,11 @@ const App = () => (
               </Route>
 
               {/* Public menu (tenant slug) */}
+              <Route path="/menu/:slug/checkout" element={<Checkout />} />
               <Route path="/menu/:slug" element={<PublicMenu />} />
               <Route path="/menu" element={<PublicMenu />} />
-              <Route path="/checkout" element={<Checkout />} />
+              {/* Legacy /checkout redirect */}
+              <Route path="/checkout" element={<CheckoutRedirect />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

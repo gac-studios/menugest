@@ -1,25 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Minus, Plus, Trash2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCart } from '@/contexts/CartContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { buildOrderMessage, openWhatsApp } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
-
-const storeName = 'Burger House';
-const storePhone = '5534999999999'; // TODO: from tenant
+import { supabase } from '@/lib/supabase';
 
 export default function Checkout() {
+  const { slug } = useParams<{ slug: string }>();
   const { items, updateQuantity, updateObservation, removeItem, clearCart, total, itemCount } = useCart();
   const [customerName, setCustomerName] = useState('');
   const [orderType, setOrderType] = useState<'retirada' | 'entrega'>('retirada');
   const [address, setAddress] = useState('');
   const [generalNote, setGeneralNote] = useState('');
+  const [tenantData, setTenantData] = useState<{ name: string; whatsapp_phone?: string | null } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Fetch tenant info from slug so page is self-contained after WhatsApp redirect
+  useEffect(() => {
+    if (!slug) return;
+    supabase
+      .from('tenants')
+      .select('name, whatsapp_phone')
+      .eq('slug', slug)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setTenantData(data);
+      });
+  }, [slug]);
+
+  const storeName = tenantData?.name || 'Restaurante';
+  const storePhone = tenantData?.whatsapp_phone || '5500000000000';
 
   const handleSendWhatsApp = () => {
     if (items.length === 0) return;
@@ -35,10 +51,9 @@ export default function Checkout() {
 
     openWhatsApp(storePhone, message);
 
-    // TODO: register stats event in Supabase
     toast({ title: 'Pedido enviado!', description: 'Seu pedido foi aberto no WhatsApp.' });
     clearCart();
-    navigate('/menu');
+    navigate(`/menu/${slug}`);
   };
 
   if (itemCount === 0) {
@@ -48,7 +63,7 @@ export default function Checkout() {
           <span className="text-6xl block mb-4">🛒</span>
           <h1 className="text-xl font-bold text-foreground">Carrinho vazio</h1>
           <p className="text-muted-foreground mt-2">Adicione itens do cardápio</p>
-          <Link to="/menu">
+          <Link to={slug ? `/menu/${slug}` : '/'}>
             <Button className="mt-6 gradient-primary text-primary-foreground border-0">Ver Cardápio</Button>
           </Link>
         </div>
@@ -61,7 +76,7 @@ export default function Checkout() {
       {/* Header */}
       <div className="sticky top-0 bg-card/90 backdrop-blur-lg border-b border-border z-10">
         <div className="max-w-lg mx-auto flex items-center gap-3 px-4 h-14">
-          <Link to="/menu" className="text-foreground"><ArrowLeft size={20} /></Link>
+          <Link to={slug ? `/menu/${slug}` : '/'} className="text-foreground"><ArrowLeft size={20} /></Link>
           <h1 className="text-lg font-bold text-foreground">Finalizar Pedido</h1>
         </div>
       </div>
