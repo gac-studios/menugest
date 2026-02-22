@@ -15,6 +15,7 @@ export interface Tenant {
   address?: string;
   description?: string;
   hide_unavailable: boolean;
+  theme_bg_color?: string;
   business_hours?: Record<string, { open: string; close: string; closed?: boolean }>;
   created_at: string;
 }
