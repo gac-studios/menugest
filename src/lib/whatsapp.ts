@@ -2,6 +2,11 @@ import { CartItem } from './types';
 
 const MENUGEST_WHATSAPP = '5534932466279';
 
+export function generateOrderNumber(): string {
+  const now = Date.now();
+  return String(now).slice(-4);
+}
+
 export function buildOrderMessage(
   storeName: string,
   items: CartItem[],
@@ -9,38 +14,39 @@ export function buildOrderMessage(
   orderType?: 'retirada' | 'entrega',
   address?: string,
   generalNote?: string,
-  customerPhone?: string
+  customerPhone?: string,
+  paymentMethod?: string
 ): string {
+  const orderNum = generateOrderNumber();
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
   const lines: string[] = [];
-  lines.push(`🍽️ *Pedido - ${storeName}*`);
+  lines.push(`🛒 *NOVO PEDIDO - ${storeName}*`);
+  lines.push(`📌 *Pedido #${orderNum}*`);
   lines.push('');
 
-  if (customerPhone) {
-    lines.push(`📞 *Telefone:* ${customerPhone}`);
-  }
-  if (customerName) {
-    lines.push(`👤 *Cliente:* ${customerName}`);
-  }
-  if (orderType) {
-    lines.push(`📦 *Tipo:* ${orderType === 'retirada' ? 'Retirada no local' : 'Entrega'}`);
-  }
-  if (address) {
-    lines.push(`📍 *Endereço:* ${address}`);
-  }
+  if (customerPhone) lines.push(`📞 *Telefone:* ${customerPhone}`);
+  if (customerName) lines.push(`👤 *Cliente:* ${customerName}`);
+  if (orderType) lines.push(`📦 *Tipo:* ${orderType === 'retirada' ? 'Retirada no local' : 'Entrega'}`);
+  if (address) lines.push(`📍 *Endereço:* ${address}`);
 
   lines.push('');
-  lines.push('📋 *Itens:*');
+  lines.push('🧾 *ITENS:*');
 
   let total = 0;
   items.forEach((ci) => {
     const subtotal = ci.item.price * ci.quantity;
     total += subtotal;
-    lines.push(`• ${ci.quantity}x ${ci.item.name} — R$ ${subtotal.toFixed(2)}`);
+    lines.push(`• ${ci.quantity}x ${ci.item.name} — ${fmt(subtotal)}`);
     if (ci.observation) lines.push(`  _Obs: ${ci.observation}_`);
   });
 
   lines.push('');
-  lines.push(`💰 *Total: R$ ${total.toFixed(2)}*`);
+  lines.push(`💰 *Total: ${fmt(total)}*`);
+
+  if (paymentMethod) {
+    lines.push(`💳 *Pagamento:* ${paymentMethod}`);
+  }
 
   if (generalNote) {
     lines.push('');
