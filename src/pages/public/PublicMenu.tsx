@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; logo_url?: string | null; cover_url?: string | null; is_active: boolean } | null>(null);
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; logo_url?: string | null; cover_url?: string | null; theme_bg_color?: string | null; is_active: boolean } | null>(null);
   const [categories, setCategories] = useState<MenuCategoryType[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [activePromos, setActivePromos] = useState<Promotion[]>([]);
@@ -29,7 +29,7 @@ export default function PublicMenu() {
       localStorage.setItem('last_menu_slug', slug);
       const { data: t } = await supabase
         .from('tenants')
-        .select('id, name, logo_url, cover_url, is_active')
+        .select('id, name, logo_url, cover_url, theme_bg_color, is_active')
         .eq('slug', slug)
         .maybeSingle();
 
@@ -81,7 +81,7 @@ export default function PublicMenu() {
   const coverUrl = tenantData?.cover_url || null;
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24" style={{ backgroundColor: tenantData?.theme_bg_color || '#ffffff' }}>
       {/* Header */}
       <div
         className="text-primary-foreground px-4 pt-8 pb-6 relative"
