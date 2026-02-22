@@ -82,19 +82,26 @@ export default function PublicMenu() {
 
   return (
     <div className="min-h-screen pb-24" style={{ backgroundColor: tenantData?.theme_bg_color || '#ffffff' }}>
+      {/* Cover Banner */}
+      {coverUrl && (
+        <div className="w-full h-[220px] overflow-hidden relative">
+          <img
+            src={coverUrl}
+            alt={`Capa de ${tenantName}`}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+
       {/* Header */}
-      <div
-        className="text-primary-foreground px-4 pt-8 pb-6 relative"
-        style={coverUrl
-          ? { backgroundImage: `url(${coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-          : undefined
-        }
-      >
-        {/* overlay for readability when cover image exists */}
-        {coverUrl && <div className="absolute inset-0 bg-black/50" />}
-        <div className={`max-w-lg mx-auto relative z-10 ${!coverUrl ? 'gradient-hero' : ''}`}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shrink-0 bg-white/10 border border-white/20">
+      <div className="text-primary-foreground px-4 pt-6 pb-6 relative">
+        <div className={`max-w-lg mx-auto relative z-10 ${!coverUrl ? 'gradient-hero rounded-xl p-4' : ''}`}
+          style={coverUrl ? {} : undefined}
+        >
+          <div className="flex items-center gap-3 mb-4"
+            style={coverUrl ? { color: 'var(--foreground)' } : undefined}
+          >
+            <div className={`w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shrink-0 ${coverUrl ? 'bg-muted border border-border' : 'bg-white/10 border border-white/20'}`}>
               {logoUrl ? (
                 <img src={logoUrl} alt={tenantName} className="w-full h-full object-cover" />
               ) : (
@@ -104,17 +111,17 @@ export default function PublicMenu() {
               )}
             </div>
             <div>
-              <h1 className="text-xl font-bold">{tenantName}</h1>
-              <p className="text-sm text-primary-foreground/80">Aberto agora • Pedido mínimo R$ 15,00</p>
+              <h1 className={`text-xl font-bold ${coverUrl ? 'text-foreground' : ''}`}>{tenantName}</h1>
+              <p className={`text-sm ${coverUrl ? 'text-muted-foreground' : 'text-primary-foreground/80'}`}>Aberto agora • Pedido mínimo R$ 15,00</p>
             </div>
           </div>
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-foreground/40" />
+            <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${coverUrl ? 'text-muted-foreground' : 'text-primary-foreground/40'}`} />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar no cardápio..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-black/20 text-primary-foreground placeholder:text-primary-foreground/50 border border-white/10 outline-none text-sm"
+              className={`w-full pl-9 pr-4 py-2.5 rounded-xl outline-none text-sm ${coverUrl ? 'bg-muted text-foreground placeholder:text-muted-foreground border border-border' : 'bg-black/20 text-primary-foreground placeholder:text-primary-foreground/50 border border-white/10'}`}
             />
           </div>
         </div>
