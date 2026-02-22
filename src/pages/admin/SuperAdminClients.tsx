@@ -123,6 +123,7 @@ export default function SuperAdminClients() {
 
   const planBadge = (plan: string) => {
     if (plan === 'pro') return <Badge className="bg-pro/20 text-pro border-pro/40">Pro</Badge>;
+    if (plan === 'none') return <Badge variant="outline" className="text-muted-foreground">Sem plano</Badge>;
     return <Badge variant="secondary">Basic</Badge>;
   };
 
@@ -160,6 +161,7 @@ export default function SuperAdminClients() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os planos</SelectItem>
+            <SelectItem value="none">Sem plano</SelectItem>
             <SelectItem value="basic">Basic</SelectItem>
             <SelectItem value="pro">Pro</SelectItem>
           </SelectContent>
