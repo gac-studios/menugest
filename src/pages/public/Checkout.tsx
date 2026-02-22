@@ -19,6 +19,7 @@ export default function Checkout() {
   const [orderType, setOrderType] = useState<'retirada' | 'entrega'>('retirada');
   const [address, setAddress] = useState('');
   const [generalNote, setGeneralNote] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [tenantData, setTenantData] = useState<{ name: string; whatsapp_phone?: string | null } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -70,7 +71,8 @@ export default function Checkout() {
       orderType,
       orderType === 'entrega' ? address || undefined : undefined,
       generalNote || undefined,
-      customerPhone
+      customerPhone,
+      paymentMethod || undefined
     );
 
     openWhatsApp(storePhone, message);
@@ -182,6 +184,20 @@ export default function Checkout() {
               <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Rua, número, bairro" className="mt-1" />
             </div>
           )}
+          <div>
+            <Label className="text-xs">Forma de pagamento</Label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {['Pix', 'Dinheiro', 'Crédito', 'Débito'].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setPaymentMethod(m)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === m ? 'gradient-primary text-primary-foreground border-transparent' : 'bg-card text-foreground border-border'}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <Label className="text-xs">Observação geral</Label>
             <Textarea value={generalNote} onChange={e => setGeneralNote(e.target.value)} placeholder="Alguma observação sobre o pedido?" className="mt-1" rows={2} />
