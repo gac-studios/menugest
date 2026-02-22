@@ -18,6 +18,7 @@ interface DashboardStats {
   menuItems: number;
   categories: number;
   activePromotions: number;
+  monthlySales: number;
 }
 
 export default function Dashboard() {
@@ -41,7 +42,9 @@ export default function Dashboard() {
     try {
       const now = new Date().toISOString();
 
-      const [itemsRes, catsRes, promoRes] = await Promise.all([
+      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+      const [itemsRes, catsRes, promoRes, salesRes] = await Promise.all([
         supabase
           .from('menu_items')
           .select('id', { count: 'exact', head: true })
@@ -58,19 +61,25 @@ export default function Dashboard() {
           .from('promotions')
           .select('id', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
-          .eq('is_active', true)
-          .or(`starts_at.is.null,starts_at.lte.${now}`)
-          .or(`ends_at.is.null,ends_at.gte.${now}`),
+          .eq('is_active', true),
+
+        supabase
+          .from('sales')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
+          .gte('created_at', startOfMonth),
       ]);
 
       setStats({
         menuItems: itemsRes.count ?? 0,
         categories: catsRes.count ?? 0,
         activePromotions: promoRes.count ?? 0,
+        monthlySales: salesRes.count ?? 0,
       });
     } catch (err) {
       console.error('Error fetching dashboard stats:', err);
-      setStats({ menuItems: 0, categories: 0, activePromotions: 0 });
+      setStats({ menuItems: 0, categories: 0, activePromotions: 0, monthlySales: 0 });
     } finally {
       setLoadingStats(false);
     }
@@ -106,7 +115,7 @@ export default function Dashboard() {
     },
     {
       label: 'Pedidos no mês',
-      value: 0,
+      value: stats?.monthlySales ?? 0,
       icon: <ShoppingCart size={20} />,
       color: 'text-primary',
     },
