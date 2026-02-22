@@ -4,11 +4,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Upload, X, Image as ImageIcon, Lock, Palette } from 'lucide-react';
+import { Loader2, Upload, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/useTenant';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
+import PersonalizationTab from '@/components/admin/PersonalizationTab';
 
 function toSlug(value: string): string {
   return value
@@ -233,30 +234,6 @@ export default function Settings() {
 
   const isBrandingUploading = uploadingLogo || uploadingCover;
 
-  // ── Personalização (Pro) ──────────────────────────────────────────────────
-  const isPro = tenant?.plan === 'pro';
-  const [themeBgColor, setThemeBgColor] = useState('#ffffff');
-  const [savingTheme, setSavingTheme] = useState(false);
-
-  useEffect(() => {
-    if (tenant) {
-      setThemeBgColor((tenant as any).theme_bg_color || '#ffffff');
-    }
-  }, [tenant]);
-
-  const saveTheme = async () => {
-    if (!tenant?.id) return;
-    setSavingTheme(true);
-    const { error } = await supabase.from('tenants').update({ theme_bg_color: themeBgColor }).eq('id', tenant.id);
-    if (error) {
-      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Cor de fundo salva!' });
-      await refetch();
-    }
-    setSavingTheme(false);
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -346,57 +323,8 @@ export default function Settings() {
         </TabsContent>
 
         {/* ── Personalização (Pro) ─────────────────────────────────────────── */}
-        <TabsContent value="personalization" className="mt-6 space-y-4">
-          {isPro ? (
-            <div className="bg-card rounded-xl p-6 border border-border/50 shadow-card space-y-4">
-              <div>
-                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-                  <Palette size={18} className="text-primary" />
-                  Personalização (Plano Pro)
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">Customize a aparência do seu cardápio público</p>
-              </div>
-              <div>
-                <Label>Cor de fundo do cardápio</Label>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <input
-                    type="color"
-                    value={themeBgColor}
-                    onChange={e => setThemeBgColor(e.target.value)}
-                    className="w-12 h-10 rounded-lg border border-border cursor-pointer"
-                  />
-                  <Input
-                    value={themeBgColor}
-                    onChange={e => setThemeBgColor(e.target.value)}
-                    placeholder="#ffffff"
-                    className="w-32 font-mono text-sm"
-                  />
-                  <div className="w-16 h-10 rounded-lg border border-border" style={{ backgroundColor: themeBgColor }} />
-                </div>
-              </div>
-              <Button className="gradient-primary text-primary-foreground border-0" onClick={saveTheme} disabled={savingTheme}>
-                {savingTheme && <Loader2 size={16} className="animate-spin mr-2" />}
-                {savingTheme ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
-          ) : (
-            <div className="bg-card rounded-xl p-6 border border-border/50 shadow-card">
-              <div className="flex flex-col items-center text-center py-6 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                  <Lock size={20} className="text-muted-foreground" />
-                </div>
-                <h3 className="text-base font-semibold text-foreground">Recurso exclusivo do Plano Pro</h3>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  Personalize a cor de fundo do seu cardápio público e muito mais com o Plano Pro.
-                </p>
-                <Link to="/plans">
-                  <Button className="gradient-pro text-pro-foreground border-0 mt-2">
-                    Upgrade para Pro
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          )}
+        <TabsContent value="personalization" className="mt-6">
+          <PersonalizationTab />
         </TabsContent>
 
         {/* ── Horários ─────────────────────────────────────────────────────── */}

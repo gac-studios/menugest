@@ -6,9 +6,11 @@ import { useState } from 'react';
 interface MenuCardProps {
   item: MenuItem;
   compact?: boolean;
+  themePrimary?: string;
+  themeButtonPlus?: string;
 }
 
-export default function MenuCard({ item, compact }: MenuCardProps) {
+export default function MenuCard({ item, compact, themePrimary, themeButtonPlus }: MenuCardProps) {
   const { addItem, items, updateQuantity, removeItem } = useCart();
   const [imgError, setImgError] = useState(false);
   const cartItem = items.find(ci => ci.item.id === item.id);
@@ -51,7 +53,7 @@ export default function MenuCard({ item, compact }: MenuCardProps) {
         )}
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-baseline gap-1.5">
-            <span className="font-bold text-primary">R$ {item.price.toFixed(2)}</span>
+            <span className={`font-bold ${!themePrimary ? 'text-primary' : ''}`} style={themePrimary ? { color: themePrimary } : undefined}>R$ {item.price.toFixed(2)}</span>
             {item.original_price && item.original_price > item.price && (
               <span className="text-xs text-muted-foreground line-through">R$ {item.original_price.toFixed(2)}</span>
             )}
@@ -63,12 +65,12 @@ export default function MenuCard({ item, compact }: MenuCardProps) {
                   <Minus size={14} />
                 </button>
                 <span className="text-sm font-semibold w-5 text-center">{qty}</span>
-                <button onClick={() => addItem(item)} className="w-7 h-7 rounded-full gradient-primary flex items-center justify-center text-primary-foreground">
+                <button onClick={() => addItem(item)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: themeButtonPlus || 'var(--gradient-primary)' }}>
                   <Plus size={14} />
                 </button>
               </>
             ) : (
-              <button onClick={() => addItem(item)} className="w-7 h-7 rounded-full gradient-primary flex items-center justify-center text-primary-foreground">
+              <button onClick={() => addItem(item)} className="w-7 h-7 rounded-full flex items-center justify-center text-white" style={{ background: themeButtonPlus || 'var(--gradient-primary)' }}>
                 <Plus size={14} />
               </button>
             )}

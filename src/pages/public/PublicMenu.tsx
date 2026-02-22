@@ -11,7 +11,13 @@ import { supabase } from '@/lib/supabase';
 
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; logo_url?: string | null; cover_url?: string | null; theme_bg_color?: string | null; is_active: boolean } | null>(null);
+  const [tenantData, setTenantData] = useState<{
+    id: string; name: string; logo_url?: string | null; cover_url?: string | null;
+    theme_bg_color?: string | null; theme_primary_color?: string | null;
+    theme_button_plus_color?: string | null; theme_header_color?: string | null;
+    theme_background_color?: string | null; theme_font?: string | null;
+    is_active: boolean;
+  } | null>(null);
   const [categories, setCategories] = useState<MenuCategoryType[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [activePromos, setActivePromos] = useState<Promotion[]>([]);
@@ -29,7 +35,7 @@ export default function PublicMenu() {
       localStorage.setItem('last_menu_slug', slug);
       const { data: t } = await supabase
         .from('tenants')
-        .select('id, name, logo_url, cover_url, theme_bg_color, is_active')
+        .select('id, name, logo_url, cover_url, theme_bg_color, theme_primary_color, theme_button_plus_color, theme_header_color, theme_background_color, theme_font, is_active')
         .eq('slug', slug)
         .maybeSingle();
 
@@ -80,8 +86,25 @@ export default function PublicMenu() {
   const logoUrl = tenantData?.logo_url || null;
   const coverUrl = tenantData?.cover_url || null;
 
+  const themeBg = tenantData?.theme_background_color || tenantData?.theme_bg_color || '#ffffff';
+  const themePrimary = tenantData?.theme_primary_color || undefined;
+  const themeButtonPlus = tenantData?.theme_button_plus_color || undefined;
+  const themeHeader = tenantData?.theme_header_color || undefined;
+  const themeFont = tenantData?.theme_font || undefined;
+
+  const fontImport = themeFont && themeFont !== 'Plus Jakarta Sans'
+    ? `https://fonts.googleapis.com/css2?family=${themeFont.replace(/ /g, '+')}:wght@400;500;600;700&display=swap`
+    : null;
+
   return (
-    <div className="min-h-screen pb-24" style={{ backgroundColor: tenantData?.theme_bg_color || '#ffffff' }}>
+    <div
+      className="min-h-screen pb-24"
+      style={{
+        backgroundColor: themeBg,
+        fontFamily: themeFont ? `'${themeFont}', sans-serif` : undefined,
+      }}
+    >
+      {fontImport && <link rel="stylesheet" href={fontImport} />}
       {/* Cover Banner */}
       {coverUrl && (
         <div className="w-full h-[220px] overflow-hidden relative">
@@ -95,8 +118,8 @@ export default function PublicMenu() {
 
       {/* Header */}
       <div className="text-primary-foreground px-4 pt-6 pb-6 relative">
-        <div className={`max-w-lg mx-auto relative z-10 ${!coverUrl ? 'gradient-hero rounded-xl p-4' : ''}`}
-          style={coverUrl ? {} : undefined}
+        <div className={`max-w-lg mx-auto relative z-10 ${!coverUrl ? 'rounded-xl p-4' : ''}`}
+          style={!coverUrl ? { background: themeHeader || 'var(--gradient-hero)' } : undefined}
         >
           <div className="flex items-center gap-3 mb-4"
             style={coverUrl ? { color: 'var(--foreground)' } : undefined}
@@ -133,8 +156,9 @@ export default function PublicMenu() {
           <button
             onClick={() => setActiveCategory(null)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              !activeCategory ? 'gradient-primary text-primary-foreground' : 'bg-card text-foreground border border-border'
+              !activeCategory ? `text-white ${!themePrimary ? 'gradient-primary' : ''}` : 'bg-card text-foreground border border-border'
             }`}
+            style={!activeCategory && themePrimary ? { background: themePrimary } : undefined}
           >
             Todos
           </button>
@@ -143,8 +167,9 @@ export default function PublicMenu() {
               key={c.id}
               onClick={() => setActiveCategory(c.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeCategory === c.id ? 'gradient-primary text-primary-foreground' : 'bg-card text-foreground border border-border'
+                activeCategory === c.id ? `text-white ${!themePrimary ? 'gradient-primary' : ''}` : 'bg-card text-foreground border border-border'
               }`}
+              style={activeCategory === c.id && themePrimary ? { background: themePrimary } : undefined}
             >
               {c.name}
             </button>
@@ -184,7 +209,7 @@ export default function PublicMenu() {
             <div className="space-y-2">
               {itemPromotions.map(item => (
                 <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                  <MenuCard item={item} />
+                  <MenuCard item={item} themePrimary={themePrimary} themeButtonPlus={themeButtonPlus} />
                 </motion.div>
               ))}
             </div>
@@ -200,7 +225,7 @@ export default function PublicMenu() {
               <h2 className="text-lg font-bold text-foreground mb-3">{cat.name}</h2>
               <div className="space-y-2">
                 {catItems.map(item => (
-                  <MenuCard key={item.id} item={item} />
+                  <MenuCard key={item.id} item={item} themePrimary={themePrimary} themeButtonPlus={themeButtonPlus} />
                 ))}
               </div>
             </div>
@@ -222,7 +247,7 @@ export default function PublicMenu() {
         >
           <div className="max-w-lg mx-auto">
             <Link to={`/menu/${slug}/checkout`}>
-              <Button className="w-full gradient-primary text-primary-foreground border-0 h-14 text-base" size="lg">
+              <Button className={`w-full text-white border-0 h-14 text-base ${!themePrimary ? 'gradient-primary' : ''}`} size="lg" style={themePrimary ? { background: themePrimary } : undefined}>
                 <ShoppingCart size={20} className="mr-2" />
                 Ver carrinho ({itemCount}) — R$ {total.toFixed(2)}
               </Button>

@@ -16,6 +16,11 @@ export interface Tenant {
   description?: string;
   hide_unavailable: boolean;
   theme_bg_color?: string;
+  theme_primary_color?: string;
+  theme_button_plus_color?: string;
+  theme_header_color?: string;
+  theme_background_color?: string;
+  theme_font?: string;
   business_hours?: Record<string, { open: string; close: string; closed?: boolean }>;
   created_at: string;
 }
