@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShoppingCart, TrendingUp, Package, DollarSign, Crown, ExternalLink, AlertCircle, Lock } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Package, DollarSign, Crown, ExternalLink, AlertCircle, Lock, Flame, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link, useNavigate } from 'react-router-dom';
@@ -21,12 +21,26 @@ interface DashboardStats {
   monthlySales: number;
 }
 
+interface OperationalStats {
+  revenue_today: number;
+  orders_today: number;
+  avg_ticket_today: number;
+}
+
+interface TopProduct {
+  name: string;
+  total_sold: number;
+}
+
 export default function Dashboard() {
   const { tenant, hasNoPlan, hasActivePlan, isProEnabled, refetch } = useTenant();
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [opStats, setOpStats] = useState<OperationalStats | null>(null);
+  const [topProduct, setTopProduct] = useState<TopProduct | null>(null);
+  const [loadingOp, setLoadingOp] = useState(true);
 
   useEffect(() => {
     refetch();
@@ -35,7 +49,32 @@ export default function Dashboard() {
   useEffect(() => {
     if (!tenant?.id) return;
     fetchStats(tenant.id);
+    fetchOperational();
   }, [tenant?.id]);
+
+  const fetchOperational = async () => {
+    setLoadingOp(true);
+    try {
+      const [opRes, topRes] = await Promise.all([
+        supabase.from('dashboard_operational').select('*').maybeSingle(),
+        supabase.from('dashboard_top_product').select('*').maybeSingle(),
+      ]);
+      if (opRes.data) {
+        setOpStats({
+          revenue_today: Number(opRes.data.revenue_today) || 0,
+          orders_today: Number(opRes.data.orders_today) || 0,
+          avg_ticket_today: Number(opRes.data.avg_ticket_today) || 0,
+        });
+      }
+      if (topRes.data) {
+        setTopProduct({ name: topRes.data.name, total_sold: Number(topRes.data.total_sold) || 0 });
+      }
+    } catch (err) {
+      console.error('Error fetching operational stats:', err);
+    } finally {
+      setLoadingOp(false);
+    }
+  };
 
   const fetchStats = async (tenantId: string) => {
     setLoadingStats(true);
@@ -221,6 +260,38 @@ export default function Dashboard() {
           </Link>
         </motion.div>
       )}
+
+      {/* Operational cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Faturamento Hoje', value: opStats?.revenue_today, icon: <DollarSign size={20} />, color: 'text-primary', isCurrency: true },
+          { label: 'Pedidos Hoje', value: opStats?.orders_today, icon: <ShoppingCart size={20} />, color: 'text-accent-foreground' },
+          { label: 'Ticket Médio', value: opStats?.avg_ticket_today, icon: <Receipt size={20} />, color: 'text-primary', isCurrency: true },
+          { label: 'Campeão do Mês', value: topProduct ? `${topProduct.name} (${topProduct.total_sold})` : null, icon: <Flame size={20} />, color: 'text-destructive' },
+        ].map((card, i) => (
+          <motion.div
+            key={card.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }}
+            className="bg-card rounded-xl p-5 shadow-card border border-border/50"
+          >
+            <div className={`${card.color} mb-3`}>{card.icon}</div>
+            {loadingOp ? (
+              <Skeleton className="h-8 w-24 mb-1" />
+            ) : (
+              <p className="text-2xl font-bold text-foreground truncate">
+                {card.value == null
+                  ? 'Sem vendas hoje'
+                  : card.isCurrency
+                    ? Number(card.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    : card.value}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">{card.label}</p>
+          </motion.div>
+        ))}
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
