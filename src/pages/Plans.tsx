@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Check, X, Crown, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { openContractWhatsApp } from '@/lib/whatsapp';
 
 const plans = [
   {
@@ -113,21 +112,18 @@ export default function Plans() {
                   </li>
                 ))}
               </ul>
-              {plan.popular ? (
-                <Button
-                  className="w-full gradient-primary text-primary-foreground border-0 text-base"
-                  size="lg"
-                  onClick={() => openContractWhatsApp('Minha Empresa', 'minha-empresa', 'email@exemplo.com')}
-                >
-                  Contratar no WhatsApp
-                </Button>
-              ) : (
-                <Link to="/register" className="block">
-                  <Button variant="outline" className="w-full text-base" size="lg">
-                    Começar com Básico
-                  </Button>
-                </Link>
-              )}
+              <Button
+                className="w-full gradient-primary text-primary-foreground border-0 text-base"
+                size="lg"
+                onClick={() => {
+                  const msg = plan.name === 'Pro'
+                    ? 'Olá, quero contratar o plano Pro do MenuCash'
+                    : 'Olá, quero contratar o plano Básico do MenuCash';
+                  window.open(`https://wa.me/553432466279?text=${encodeURIComponent(msg)}`, '_blank');
+                }}
+              >
+                Contratar no WhatsApp
+              </Button>
             </motion.div>
           ))}
         </div>
