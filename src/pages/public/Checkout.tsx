@@ -9,6 +9,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { buildOrderMessage, openWhatsApp } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { fetchPlanFeatures, type PlanFeatures } from '@/hooks/usePlanFeatures';
 
 const paymentMethodMap: Record<string, string> = {
   Pix: 'pix',
@@ -29,6 +30,7 @@ export default function Checkout() {
   const [generalNote, setGeneralNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [tenantData, setTenantData] = useState<{ id: string; name: string; whatsapp_phone?: string | null; plan?: string | null } | null>(null);
+  const [planFeatures, setPlanFeatures] = useState<PlanFeatures | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [sending, setSending] = useState(false);
   const navigate = useNavigate();
@@ -55,12 +57,16 @@ export default function Checkout() {
       .select('id, name, whatsapp_phone, plan')
       .eq('slug', slug)
       .maybeSingle()
-      .then(({ data }) => {
-        if (data) setTenantData(data);
+      .then(async ({ data }) => {
+        if (data) {
+          setTenantData(data);
+          const feats = await fetchPlanFeatures(data.plan || 'none');
+          setPlanFeatures(feats);
+        }
       });
   }, [slug]);
 
-  const isPro = tenantData?.plan === 'pro';
+  const useInternalOrders = planFeatures?.orders_internal === true;
 
   const handleSubmitOrder = async () => {
     if (items.length === 0) {
@@ -87,7 +93,7 @@ export default function Checkout() {
 
     setSending(true);
     try {
-      if (isPro) {
+      if (useInternalOrders) {
         // --- PRO: save internally, no WhatsApp ---
         // STEP 1: Create a NEW sale record — never reuse any previous sale_id
         const dbPayment = paymentMethodMap[paymentMethod] || paymentMethod.toLowerCase() || 'dinheiro';
@@ -343,7 +349,7 @@ export default function Checkout() {
             {sending ? 'Finalizando...' : 'Finalizar pedido'}
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-2">
-            {isPro ? 'Seu pedido será registrado no sistema do restaurante.' : 'Seu pedido será enviado via WhatsApp.'}
+            {useInternalOrders ? 'Seu pedido será registrado no sistema do restaurante.' : 'Seu pedido será enviado via WhatsApp.'}
           </p>
         </div>
       </div>

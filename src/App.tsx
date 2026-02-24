@@ -32,6 +32,7 @@ import SalesPage from "./pages/admin/SalesPage";
 import FinancialPage from "./pages/admin/FinancialPage";
 import OrdersPage from "./pages/admin/OrdersPage";
 import SuperAdminClients from "./pages/admin/SuperAdminClients";
+import PlanFeaturesPage from "./pages/admin/PlanFeaturesPage";
 import PublicMenu from "./pages/public/PublicMenu";
 import Checkout from "./pages/public/Checkout";
 
@@ -179,6 +180,7 @@ const App = () => (
 
                 {/* Super Admin (protected by SuperAdminRoute rendered inside) */}
                 <Route path="/superadmin/clients" element={<SuperAdminRoute><SuperAdminClients /></SuperAdminRoute>} />
+                <Route path="/superadmin/plan-features" element={<SuperAdminRoute><PlanFeaturesPage /></SuperAdminRoute>} />
               </Route>
 
               {/* Public menu (tenant slug) */}
