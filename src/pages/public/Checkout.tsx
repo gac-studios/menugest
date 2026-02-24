@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Minus, Plus, Trash2, MessageCircle, CheckCircle2, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Trash2, CheckCircle2, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,7 @@ export default function Checkout() {
   const [phoneError, setPhoneError] = useState('');
   const [orderType, setOrderType] = useState<'retirada' | 'entrega'>('retirada');
   const [address, setAddress] = useState('');
+  const [addressError, setAddressError] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [tenantData, setTenantData] = useState<{ id: string; name: string; whatsapp_phone?: string | null; plan?: string | null } | null>(null);
@@ -37,8 +38,7 @@ export default function Checkout() {
     const digits = value.replace(/\D/g, '').slice(0, 11);
     if (digits.length <= 2) return digits;
     if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    if (digits.length <= 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-    return value;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,6 +47,7 @@ export default function Checkout() {
     if (phoneError) setPhoneError('');
   };
 
+  // Always fetch fresh tenant data by slug (no stale cache)
   useEffect(() => {
     if (!slug) return;
     supabase
@@ -59,48 +60,52 @@ export default function Checkout() {
       });
   }, [slug]);
 
-  const storeName = tenantData?.name || 'Restaurante';
-  const storePhone = tenantData?.whatsapp_phone || '5500000000000';
   const isPro = tenantData?.plan === 'pro';
 
   const handleSubmitOrder = async () => {
     if (items.length === 0 || !tenantData) return;
 
+    // Validate phone
     const digits = customerPhone.replace(/\D/g, '');
     if (digits.length < 10) {
       setPhoneError('Informe um telefone válido com DDD');
       return;
     }
 
+    // Validate address for delivery
+    if (orderType === 'entrega' && !address.trim()) {
+      setAddressError('Informe o endereço de entrega');
+      return;
+    }
+
     setSending(true);
     try {
-      // Save order to database
-      const dbPayment = paymentMethodMap[paymentMethod] || paymentMethod.toLowerCase() || 'dinheiro';
-      const { data: sale, error: saleError } = await supabase
-        .from('sales')
-        .insert({
-          tenant_id: tenantData.id,
-          total: parseFloat(total.toFixed(2)),
-          payment_method: dbPayment,
-          description: items.map(ci => `${ci.item.name} x${ci.quantity}`).join(', '),
-          status: 'new',
-          customer_name: customerName || null,
-          customer_phone: customerPhone || null,
-          delivery_address: orderType === 'entrega' ? (address || null) : null,
-          notes: generalNote || null,
-          sold_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
+      if (isPro) {
+        // --- PRO: save internally, no WhatsApp ---
+        const dbPayment = paymentMethodMap[paymentMethod] || paymentMethod.toLowerCase() || 'dinheiro';
+        const { data: sale, error: saleError } = await supabase
+          .from('sales')
+          .insert({
+            tenant_id: tenantData.id,
+            total: parseFloat(total.toFixed(2)),
+            payment_method: dbPayment,
+            description: items.map(ci => `${ci.item.name} x${ci.quantity}`).join(', '),
+            status: 'new',
+            customer_name: customerName || null,
+            customer_phone: customerPhone || null,
+            delivery_address: orderType === 'entrega' ? address : null,
+            notes: generalNote || null,
+            sold_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
 
-      if (saleError || !sale) {
-        console.error('Error creating sale:', saleError);
-        if (isPro) {
+        if (saleError || !sale) {
           toast({ title: 'Erro ao registrar pedido', description: saleError?.message, variant: 'destructive' });
           setSending(false);
           return;
         }
-      } else {
+
         const saleItems = items.map(ci => ({
           tenant_id: tenantData.id,
           sale_id: sale.id,
@@ -109,16 +114,15 @@ export default function Checkout() {
           unit_price: ci.item.price,
           subtotal: parseFloat((ci.item.price * ci.quantity).toFixed(2)),
         }));
-        const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
-        if (itemsError) console.error('Error inserting sale items:', itemsError);
-      }
+        await supabase.from('sale_items').insert(saleItems);
 
-      if (isPro) {
-        // Pro: finish internally
         clearCart();
         setOrderSuccess(true);
       } else {
-        // Basic/None: send via WhatsApp
+        // --- BASIC/NONE: WhatsApp only, no DB save ---
+        const storeName = tenantData.name || 'Restaurante';
+        const storePhone = tenantData.whatsapp_phone || '5500000000000';
+
         const message = buildOrderMessage(
           storeName,
           items,
@@ -127,22 +131,31 @@ export default function Checkout() {
           orderType === 'entrega' ? address || undefined : undefined,
           generalNote || undefined,
           customerPhone,
-          paymentMethod || undefined
+          paymentMethod || undefined,
         );
-        openWhatsApp(storePhone, message);
-        toast({ title: 'Pedido enviado!', description: 'Seu pedido foi registrado e aberto no WhatsApp.' });
+
+        toast({ title: 'Abrindo WhatsApp...' });
+
+        try {
+          openWhatsApp(storePhone, message);
+        } catch {
+          toast({ title: 'Erro ao abrir WhatsApp', description: 'Não foi possível abrir o WhatsApp. Tente novamente.', variant: 'destructive' });
+          setSending(false);
+          return;
+        }
+
         clearCart();
         navigate(`/menu/${slug}`);
       }
     } catch (err: any) {
       console.error('Checkout error:', err);
-      toast({ title: 'Erro ao enviar pedido', description: err?.message, variant: 'destructive' });
+      toast({ title: 'Erro ao finalizar pedido', description: err?.message, variant: 'destructive' });
     } finally {
       setSending(false);
     }
   };
 
-  // Success screen for Pro tenants
+  // Success screen (Pro only)
   if (orderSuccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
@@ -150,7 +163,7 @@ export default function Checkout() {
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-green-600" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">Pedido enviado!</h1>
+          <h1 className="text-xl font-bold text-foreground">Pedido finalizado!</h1>
           <p className="text-muted-foreground mt-2">Seu pedido foi registrado com sucesso. Acompanhe o status diretamente com o restaurante.</p>
           <Link to={slug ? `/menu/${slug}` : '/'}>
             <Button className="mt-6 gradient-primary text-primary-foreground border-0">Voltar ao Cardápio</Button>
@@ -223,7 +236,7 @@ export default function Checkout() {
 
         {/* Customer info */}
         <div className="space-y-4">
-          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">Seus dados (opcional)</h2>
+          <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">Seus dados</h2>
           <div>
             <Label className="text-xs">Nome</Label>
             <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Seu nome" className="mt-1" />
@@ -243,7 +256,7 @@ export default function Checkout() {
             <Label className="text-xs">Tipo do pedido</Label>
             <div className="flex gap-2 mt-1">
               <button
-                onClick={() => setOrderType('retirada')}
+                onClick={() => { setOrderType('retirada'); setAddressError(''); }}
                 className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${orderType === 'retirada' ? 'gradient-primary text-primary-foreground border-transparent' : 'bg-card text-foreground border-border'}`}
               >
                 Retirada
@@ -258,8 +271,14 @@ export default function Checkout() {
           </div>
           {orderType === 'entrega' && (
             <div>
-              <Label className="text-xs">Endereço de entrega</Label>
-              <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="Rua, número, bairro" className="mt-1" />
+              <Label className="text-xs">Endereço de entrega <span className="text-destructive">*</span></Label>
+              <Input
+                value={address}
+                onChange={e => { setAddress(e.target.value); if (addressError) setAddressError(''); }}
+                placeholder="Rua, número, bairro"
+                className={`mt-1 ${addressError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+              />
+              {addressError && <p className="text-xs text-destructive mt-1">{addressError}</p>}
             </div>
           )}
           <div>
@@ -291,11 +310,8 @@ export default function Checkout() {
             <span className="text-lg font-bold text-foreground">R$ {total.toFixed(2)}</span>
           </div>
           <Button onClick={handleSubmitOrder} disabled={sending} className="w-full h-14 text-base gradient-primary text-primary-foreground border-0" size="lg">
-            {isPro ? (
-              <><ShoppingBag size={20} className="mr-2" /> {sending ? 'Finalizando...' : 'Finalizar pedido'}</>
-            ) : (
-              <><MessageCircle size={20} className="mr-2" /> {sending ? 'Enviando...' : 'Enviar pedido no WhatsApp'}</>
-            )}
+            <ShoppingBag size={20} className="mr-2" />
+            {sending ? 'Finalizando...' : 'Finalizar pedido'}
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-2">
             {isPro ? 'Seu pedido será registrado no sistema do restaurante.' : 'Seu pedido será enviado via WhatsApp.'}
