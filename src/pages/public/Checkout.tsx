@@ -89,26 +89,30 @@ export default function Checkout() {
     try {
       if (isPro) {
         // --- PRO: save internally, no WhatsApp ---
+        // STEP 1: Create a NEW sale record — never reuse any previous sale_id
         const dbPayment = paymentMethodMap[paymentMethod] || paymentMethod.toLowerCase() || 'dinheiro';
-        const { data: sale, error: saleError } = await supabase
+        const salePayload = {
+          tenant_id: tenantData.id,
+          total: parseFloat(total.toFixed(2)),
+          payment_method: dbPayment,
+          description: items.map(ci => `${ci.item.name} x${ci.quantity}`).join(', '),
+          status: 'new',
+          customer_name: customerName || null,
+          customer_phone: customerPhone || null,
+          delivery_address: orderType === 'entrega' ? address : null,
+          notes: generalNote || null,
+          sold_at: new Date().toISOString(),
+        };
+        console.log('[Checkout] Inserting NEW sale:', JSON.stringify(salePayload));
+
+        const { data: newSale, error: saleError } = await supabase
           .from('sales')
-          .insert({
-            tenant_id: tenantData.id,
-            total: parseFloat(total.toFixed(2)),
-            payment_method: dbPayment,
-            description: items.map(ci => `${ci.item.name} x${ci.quantity}`).join(', '),
-            status: 'new',
-            customer_name: customerName || null,
-            customer_phone: customerPhone || null,
-            delivery_address: orderType === 'entrega' ? address : null,
-            notes: generalNote || null,
-            sold_at: new Date().toISOString(),
-          })
+          .insert(salePayload)
           .select('id')
           .single();
 
-        if (saleError || !sale) {
-          console.error('Sale insert error:', saleError);
+        if (saleError || !newSale || !newSale.id) {
+          console.error('[Checkout] Sale insert FAILED:', saleError);
           const msg = saleError?.message || 'Erro desconhecido';
           const title = msg.includes('policy') || msg.includes('permission')
             ? 'Sem permissão para criar pedido'
@@ -118,22 +122,29 @@ export default function Checkout() {
           return;
         }
 
+        const createdSaleId: string = newSale.id;
+        console.log('[Checkout] Sale created with id:', createdSaleId);
+
+        // STEP 2: Insert sale_items linked to the NEWLY created sale.id
         const saleItems = items.map(ci => ({
           tenant_id: tenantData.id,
-          sale_id: sale.id,
+          sale_id: createdSaleId,
           menu_item_id: ci.item.id,
           qty: ci.quantity,
           unit_price: ci.item.price,
           subtotal: parseFloat((ci.item.price * ci.quantity).toFixed(2)),
         }));
+        console.log('[Checkout] Inserting sale_items for sale_id:', createdSaleId, saleItems.length, 'items');
+
         const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
         if (itemsError) {
-          console.error('Sale items insert error:', itemsError);
+          console.error('[Checkout] Sale items insert FAILED:', itemsError);
           toast({ title: 'Erro ao registrar itens', description: itemsError.message, variant: 'destructive' });
           setSending(false);
           return;
         }
 
+        console.log('[Checkout] Order completed successfully. sale_id:', createdSaleId);
         clearCart();
         setOrderSuccess(true);
       } else {
