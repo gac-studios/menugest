@@ -63,7 +63,14 @@ export default function Checkout() {
   const isPro = tenantData?.plan === 'pro';
 
   const handleSubmitOrder = async () => {
-    if (items.length === 0 || !tenantData) return;
+    if (items.length === 0) {
+      toast({ title: 'Carrinho vazio', description: 'Adicione itens antes de finalizar.', variant: 'destructive' });
+      return;
+    }
+    if (!tenantData) {
+      toast({ title: 'Carregando dados...', description: 'Aguarde um momento e tente novamente.' });
+      return;
+    }
 
     // Validate phone
     const digits = customerPhone.replace(/\D/g, '');
@@ -101,7 +108,12 @@ export default function Checkout() {
           .single();
 
         if (saleError || !sale) {
-          toast({ title: 'Erro ao registrar pedido', description: saleError?.message, variant: 'destructive' });
+          console.error('Sale insert error:', saleError);
+          const msg = saleError?.message || 'Erro desconhecido';
+          const title = msg.includes('policy') || msg.includes('permission')
+            ? 'Sem permissão para criar pedido'
+            : 'Erro ao registrar pedido';
+          toast({ title, description: msg, variant: 'destructive' });
           setSending(false);
           return;
         }
@@ -114,7 +126,13 @@ export default function Checkout() {
           unit_price: ci.item.price,
           subtotal: parseFloat((ci.item.price * ci.quantity).toFixed(2)),
         }));
-        await supabase.from('sale_items').insert(saleItems);
+        const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
+        if (itemsError) {
+          console.error('Sale items insert error:', itemsError);
+          toast({ title: 'Erro ao registrar itens', description: itemsError.message, variant: 'destructive' });
+          setSending(false);
+          return;
+        }
 
         clearCart();
         setOrderSuccess(true);
