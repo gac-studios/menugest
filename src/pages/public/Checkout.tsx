@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Minus, Plus, Trash2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Trash2, MessageCircle, CheckCircle2, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +27,8 @@ export default function Checkout() {
   const [address, setAddress] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; whatsapp_phone?: string | null } | null>(null);
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; whatsapp_phone?: string | null; plan?: string | null } | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState(false);
   const [sending, setSending] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -50,7 +51,7 @@ export default function Checkout() {
     if (!slug) return;
     supabase
       .from('tenants')
-      .select('id, name, whatsapp_phone')
+      .select('id, name, whatsapp_phone, plan')
       .eq('slug', slug)
       .maybeSingle()
       .then(({ data }) => {
@@ -60,8 +61,9 @@ export default function Checkout() {
 
   const storeName = tenantData?.name || 'Restaurante';
   const storePhone = tenantData?.whatsapp_phone || '5500000000000';
+  const isPro = tenantData?.plan === 'pro';
 
-  const handleSendWhatsApp = async () => {
+  const handleSubmitOrder = async () => {
     if (items.length === 0 || !tenantData) return;
 
     const digits = customerPhone.replace(/\D/g, '');
@@ -72,7 +74,7 @@ export default function Checkout() {
 
     setSending(true);
     try {
-      // 1) Create the sale record
+      // Save order to database
       const dbPayment = paymentMethodMap[paymentMethod] || paymentMethod.toLowerCase() || 'dinheiro';
       const { data: sale, error: saleError } = await supabase
         .from('sales')
@@ -93,9 +95,12 @@ export default function Checkout() {
 
       if (saleError || !sale) {
         console.error('Error creating sale:', saleError);
-        // Still send WhatsApp even if DB fails
+        if (isPro) {
+          toast({ title: 'Erro ao registrar pedido', description: saleError?.message, variant: 'destructive' });
+          setSending(false);
+          return;
+        }
       } else {
-        // 2) Create sale_items
         const saleItems = items.map(ci => ({
           tenant_id: tenantData.id,
           sale_id: sale.id,
@@ -108,22 +113,27 @@ export default function Checkout() {
         if (itemsError) console.error('Error inserting sale items:', itemsError);
       }
 
-      // 3) Build WhatsApp message & open
-      const message = buildOrderMessage(
-        storeName,
-        items,
-        customerName || undefined,
-        orderType,
-        orderType === 'entrega' ? address || undefined : undefined,
-        generalNote || undefined,
-        customerPhone,
-        paymentMethod || undefined
-      );
-      openWhatsApp(storePhone, message);
-
-      toast({ title: 'Pedido enviado!', description: 'Seu pedido foi registrado e aberto no WhatsApp.' });
-      clearCart();
-      navigate(`/menu/${slug}`);
+      if (isPro) {
+        // Pro: finish internally
+        clearCart();
+        setOrderSuccess(true);
+      } else {
+        // Basic/None: send via WhatsApp
+        const message = buildOrderMessage(
+          storeName,
+          items,
+          customerName || undefined,
+          orderType,
+          orderType === 'entrega' ? address || undefined : undefined,
+          generalNote || undefined,
+          customerPhone,
+          paymentMethod || undefined
+        );
+        openWhatsApp(storePhone, message);
+        toast({ title: 'Pedido enviado!', description: 'Seu pedido foi registrado e aberto no WhatsApp.' });
+        clearCart();
+        navigate(`/menu/${slug}`);
+      }
     } catch (err: any) {
       console.error('Checkout error:', err);
       toast({ title: 'Erro ao enviar pedido', description: err?.message, variant: 'destructive' });
@@ -131,6 +141,24 @@ export default function Checkout() {
       setSending(false);
     }
   };
+
+  // Success screen for Pro tenants
+  if (orderSuccess) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-8 h-8 text-green-600" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">Pedido enviado!</h1>
+          <p className="text-muted-foreground mt-2">Seu pedido foi registrado com sucesso. Acompanhe o status diretamente com o restaurante.</p>
+          <Link to={slug ? `/menu/${slug}` : '/'}>
+            <Button className="mt-6 gradient-primary text-primary-foreground border-0">Voltar ao Cardápio</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (itemCount === 0) {
     return (
@@ -262,9 +290,16 @@ export default function Checkout() {
             <span className="text-sm text-muted-foreground">{itemCount} {itemCount === 1 ? 'item' : 'itens'}</span>
             <span className="text-lg font-bold text-foreground">R$ {total.toFixed(2)}</span>
           </div>
-          <Button onClick={handleSendWhatsApp} disabled={sending} className="w-full h-14 text-base gradient-primary text-primary-foreground border-0" size="lg">
-            <MessageCircle size={20} className="mr-2" /> {sending ? 'Enviando...' : 'Enviar pedido no WhatsApp'}
+          <Button onClick={handleSubmitOrder} disabled={sending} className="w-full h-14 text-base gradient-primary text-primary-foreground border-0" size="lg">
+            {isPro ? (
+              <><ShoppingBag size={20} className="mr-2" /> {sending ? 'Finalizando...' : 'Finalizar pedido'}</>
+            ) : (
+              <><MessageCircle size={20} className="mr-2" /> {sending ? 'Enviando...' : 'Enviar pedido no WhatsApp'}</>
+            )}
           </Button>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            {isPro ? 'Seu pedido será registrado no sistema do restaurante.' : 'Seu pedido será enviado via WhatsApp.'}
+          </p>
         </div>
       </div>
     </div>
