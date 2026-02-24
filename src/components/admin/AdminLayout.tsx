@@ -6,7 +6,7 @@ import { useAppAdmin } from '@/hooks/useAppAdmin';
 import {
   LayoutDashboard, UtensilsCrossed, Tag, Settings, Package, ShoppingCart,
   DollarSign, BarChart3, Users, Menu, X, LogOut, Crown, ChevronDown,
-  ShieldCheck, Lock
+  ShieldCheck, Lock, ClipboardList
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
     ],
   },
   { label: 'Promoções', path: '/promotions', icon: <Tag size={20} />, requiresPlan: true },
+  { label: 'Pedidos', path: '/orders', icon: <ClipboardList size={20} />, requiresPlan: true },
   { label: 'Estoque', path: '/inventory', icon: <Package size={20} />, pro: true, requiresPlan: true },
   { label: 'Compras', path: '/purchases', icon: <ShoppingCart size={20} />, pro: true, requiresPlan: true },
   { label: 'Vendas', path: '/sales', icon: <DollarSign size={20} />, pro: true, requiresPlan: true },
