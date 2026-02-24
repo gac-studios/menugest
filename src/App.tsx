@@ -30,6 +30,7 @@ import InventoryPage from "./pages/admin/InventoryPage";
 import PurchasesPage from "./pages/admin/PurchasesPage";
 import SalesPage from "./pages/admin/SalesPage";
 import FinancialPage from "./pages/admin/FinancialPage";
+import OrdersPage from "./pages/admin/OrdersPage";
 import SuperAdminClients from "./pages/admin/SuperAdminClients";
 import PublicMenu from "./pages/public/PublicMenu";
 import Checkout from "./pages/public/Checkout";
@@ -159,6 +160,7 @@ const App = () => (
                 <Route path="/menu/items/new" element={<PlanRoute><MenuItems /></PlanRoute>} />
                 <Route path="/menu/items/:id/edit" element={<PlanRoute><MenuItems /></PlanRoute>} />
                 <Route path="/promotions" element={<PlanRoute><Promotions /></PlanRoute>} />
+                <Route path="/orders" element={<PlanRoute><OrdersPage /></PlanRoute>} />
                 <Route path="/promotions/new" element={<PlanRoute><div className="text-foreground">Nova promoção — em breve</div></PlanRoute>} />
                 <Route path="/promotions/:id/edit" element={<PlanRoute><div className="text-foreground">Editar promoção — em breve</div></PlanRoute>} />
                 <Route path="/settings/users" element={<PlanRoute><UsersPage /></PlanRoute>} />

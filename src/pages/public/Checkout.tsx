@@ -10,6 +10,13 @@ import { buildOrderMessage, openWhatsApp } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 
+const paymentMethodMap: Record<string, string> = {
+  Pix: 'pix',
+  Dinheiro: 'dinheiro',
+  Crédito: 'credito',
+  Débito: 'debito',
+};
+
 export default function Checkout() {
   const { slug } = useParams<{ slug: string }>();
   const { items, updateQuantity, updateObservation, removeItem, clearCart, total, itemCount } = useCart();
@@ -20,7 +27,8 @@ export default function Checkout() {
   const [address, setAddress] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [tenantData, setTenantData] = useState<{ name: string; whatsapp_phone?: string | null } | null>(null);
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; whatsapp_phone?: string | null } | null>(null);
+  const [sending, setSending] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -38,12 +46,11 @@ export default function Checkout() {
     if (phoneError) setPhoneError('');
   };
 
-  // Fetch tenant info from slug so page is self-contained after WhatsApp redirect
   useEffect(() => {
     if (!slug) return;
     supabase
       .from('tenants')
-      .select('name, whatsapp_phone')
+      .select('id, name, whatsapp_phone')
       .eq('slug', slug)
       .maybeSingle()
       .then(({ data }) => {
@@ -54,32 +61,75 @@ export default function Checkout() {
   const storeName = tenantData?.name || 'Restaurante';
   const storePhone = tenantData?.whatsapp_phone || '5500000000000';
 
-  const handleSendWhatsApp = () => {
-    if (items.length === 0) return;
+  const handleSendWhatsApp = async () => {
+    if (items.length === 0 || !tenantData) return;
 
-    // Validate phone
     const digits = customerPhone.replace(/\D/g, '');
     if (digits.length < 10) {
       setPhoneError('Informe um telefone válido com DDD');
       return;
     }
 
-    const message = buildOrderMessage(
-      storeName,
-      items,
-      customerName || undefined,
-      orderType,
-      orderType === 'entrega' ? address || undefined : undefined,
-      generalNote || undefined,
-      customerPhone,
-      paymentMethod || undefined
-    );
+    setSending(true);
+    try {
+      // 1) Create the sale record
+      const dbPayment = paymentMethodMap[paymentMethod] || paymentMethod.toLowerCase() || 'dinheiro';
+      const { data: sale, error: saleError } = await supabase
+        .from('sales')
+        .insert({
+          tenant_id: tenantData.id,
+          total: parseFloat(total.toFixed(2)),
+          payment_method: dbPayment,
+          description: items.map(ci => `${ci.item.name} x${ci.quantity}`).join(', '),
+          status: 'new',
+          customer_name: customerName || null,
+          customer_phone: customerPhone || null,
+          delivery_address: orderType === 'entrega' ? (address || null) : null,
+          notes: generalNote || null,
+          sold_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
 
-    openWhatsApp(storePhone, message);
+      if (saleError || !sale) {
+        console.error('Error creating sale:', saleError);
+        // Still send WhatsApp even if DB fails
+      } else {
+        // 2) Create sale_items
+        const saleItems = items.map(ci => ({
+          tenant_id: tenantData.id,
+          sale_id: sale.id,
+          menu_item_id: ci.item.id,
+          qty: ci.quantity,
+          unit_price: ci.item.price,
+          subtotal: parseFloat((ci.item.price * ci.quantity).toFixed(2)),
+        }));
+        const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
+        if (itemsError) console.error('Error inserting sale items:', itemsError);
+      }
 
-    toast({ title: 'Pedido enviado!', description: 'Seu pedido foi aberto no WhatsApp.' });
-    clearCart();
-    navigate(`/menu/${slug}`);
+      // 3) Build WhatsApp message & open
+      const message = buildOrderMessage(
+        storeName,
+        items,
+        customerName || undefined,
+        orderType,
+        orderType === 'entrega' ? address || undefined : undefined,
+        generalNote || undefined,
+        customerPhone,
+        paymentMethod || undefined
+      );
+      openWhatsApp(storePhone, message);
+
+      toast({ title: 'Pedido enviado!', description: 'Seu pedido foi registrado e aberto no WhatsApp.' });
+      clearCart();
+      navigate(`/menu/${slug}`);
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      toast({ title: 'Erro ao enviar pedido', description: err?.message, variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
   };
 
   if (itemCount === 0) {
@@ -212,8 +262,8 @@ export default function Checkout() {
             <span className="text-sm text-muted-foreground">{itemCount} {itemCount === 1 ? 'item' : 'itens'}</span>
             <span className="text-lg font-bold text-foreground">R$ {total.toFixed(2)}</span>
           </div>
-          <Button onClick={handleSendWhatsApp} className="w-full h-14 text-base gradient-primary text-primary-foreground border-0" size="lg">
-            <MessageCircle size={20} className="mr-2" /> Enviar pedido no WhatsApp
+          <Button onClick={handleSendWhatsApp} disabled={sending} className="w-full h-14 text-base gradient-primary text-primary-foreground border-0" size="lg">
+            <MessageCircle size={20} className="mr-2" /> {sending ? 'Enviando...' : 'Enviar pedido no WhatsApp'}
           </Button>
         </div>
       </div>
