@@ -3,10 +3,11 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/hooks/useTenant';
 import { useAppAdmin } from '@/hooks/useAppAdmin';
+import { usePlanFeatures } from '@/hooks/usePlanFeatures';
 import {
   LayoutDashboard, UtensilsCrossed, Tag, Settings, Package, ShoppingCart,
   DollarSign, BarChart3, Users, Menu, X, LogOut, Crown, ChevronDown,
-  ShieldCheck, Lock, ClipboardList
+  ShieldCheck, Lock, ClipboardList, Sliders
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,28 +25,29 @@ interface NavItem {
   pro?: boolean;
   /** blocked for plan='none' users (everything except dashboard & settings) */
   requiresPlan?: boolean;
+  /** feature key from plan_features — hides item if feature is false */
+  featureKey?: string;
   children?: { label: string; path: string }[];
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} /> },
+  { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} />, featureKey: 'dashboard' },
   {
     label: 'Cardápio', path: '/menu/categories', icon: <UtensilsCrossed size={20} />,
-    requiresPlan: true,
+    requiresPlan: true, featureKey: 'menu',
     children: [
       { label: 'Categorias', path: '/menu/categories' },
       { label: 'Itens', path: '/menu/items' },
     ],
   },
-  { label: 'Promoções', path: '/promotions', icon: <Tag size={20} />, requiresPlan: true },
-  { label: 'Pedidos', path: '/orders', icon: <ClipboardList size={20} />, requiresPlan: true },
-  { label: 'Estoque', path: '/inventory', icon: <Package size={20} />, pro: true, requiresPlan: true },
-  { label: 'Compras', path: '/purchases', icon: <ShoppingCart size={20} />, pro: true, requiresPlan: true },
-  { label: 'Vendas', path: '/sales', icon: <DollarSign size={20} />, pro: true, requiresPlan: true },
-  { label: 'Financeiro', path: '/reports/financial', icon: <BarChart3 size={20} />, pro: true, requiresPlan: true },
+  { label: 'Promoções', path: '/promotions', icon: <Tag size={20} />, requiresPlan: true, featureKey: 'menu' },
+  { label: 'Pedidos', path: '/orders', icon: <ClipboardList size={20} />, requiresPlan: true, featureKey: 'orders_internal' },
+  { label: 'Estoque', path: '/inventory', icon: <Package size={20} />, pro: true, requiresPlan: true, featureKey: 'inventory' },
+  { label: 'Compras', path: '/purchases', icon: <ShoppingCart size={20} />, pro: true, requiresPlan: true, featureKey: 'purchases' },
+  { label: 'Vendas', path: '/sales', icon: <DollarSign size={20} />, pro: true, requiresPlan: true, featureKey: 'sales' },
+  { label: 'Financeiro', path: '/reports/financial', icon: <BarChart3 size={20} />, pro: true, requiresPlan: true, featureKey: 'financial' },
   { label: 'Usuários', path: '/settings/users', icon: <Users size={20} />, requiresPlan: true },
-  // Configurações is always accessible — no requiresPlan
-  { label: 'Configurações', path: '/settings/company', icon: <Settings size={20} /> },
+  { label: 'Configurações', path: '/settings/company', icon: <Settings size={20} />, featureKey: 'settings' },
 ];
 
 export default function AdminLayout() {
@@ -57,6 +59,7 @@ export default function AdminLayout() {
   const { signOut, user } = useAuth();
   const { isProEnabled, hasNoPlan } = useTenant();
   const { isAppAdmin } = useAppAdmin();
+  const { features, loading: featuresLoading } = usePlanFeatures();
 
   const toggleExpanded = (label: string) => {
     setExpandedItems(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
@@ -139,7 +142,9 @@ export default function AdminLayout() {
 
           {/* Nav */}
           <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter(item => !item.featureKey || features[item.featureKey as keyof typeof features] !== false)
+              .map((item) => {
               const lockType = isItemLocked(item);
               const locked = !!lockType;
               return (
@@ -210,6 +215,17 @@ export default function AdminLayout() {
                         }`}
                       >
                         Clientes
+                      </Link>
+                      <Link
+                        to="/superadmin/plan-features"
+                        onClick={() => setSidebarOpen(false)}
+                        className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+                          location.pathname === '/superadmin/plan-features'
+                            ? 'text-sidebar-primary-foreground bg-sidebar-primary/80'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent'
+                        }`}
+                      >
+                        Planos & Benefícios
                       </Link>
                     </div>
                   )}
