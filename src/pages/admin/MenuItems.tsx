@@ -156,15 +156,30 @@ export default function MenuItems() {
   /** Uploads the selected file and returns the public URL */
   const uploadImage = async (itemId: string): Promise<string | null> => {
     if (!imageFile || !tenant?.id) return null;
-    const timestamp = Date.now();
-    const ext = imageFile.name.split('.').pop();
-    const path = `${tenant.id}/menu_items/${itemId}/${timestamp}-${imageFile.name}`;
+
+    // Validate type & size
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowedTypes.includes(imageFile.type)) {
+      toast({ title: 'Formato inválido', description: 'Use PNG, JPG ou WEBP.', variant: 'destructive' });
+      return null;
+    }
+    if (imageFile.size > 5 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'Máximo 5MB.', variant: 'destructive' });
+      return null;
+    }
+
+    // Safe filename: no accents, spaces or special chars
+    const extMap: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+    const ext = extMap[imageFile.type] || 'jpg';
+    const safeFilename = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
+    const path = `${tenant.id}/menu_items/${itemId}/${safeFilename}`;
 
     setUploading(true);
-    const { error } = await supabase.storage.from(BUCKET).upload(path, imageFile, { upsert: true });
+    const { error } = await supabase.storage.from(BUCKET).upload(path, imageFile, { contentType: imageFile.type, upsert: true });
     setUploading(false);
 
     if (error) {
+      console.error('[MenuItems] Upload error:', error);
       toast({ title: 'Erro ao fazer upload', description: error.message, variant: 'destructive' });
       return null;
     }
