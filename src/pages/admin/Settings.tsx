@@ -202,9 +202,11 @@ export default function Settings() {
     const prefix = type === 'logo' ? 'logo' : 'cover';
     setUploading(true);
     try {
-      const timestamp = Date.now();
-      const path = `${tenant.id}/brand/${prefix}-${timestamp}-${file.name}`;
-      const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { upsert: true });
+      const extMap: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+      const ext = extMap[file.type] || 'jpg';
+      const safeFilename = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
+      const path = `${tenant.id}/brand/${prefix}-${safeFilename}`;
+      const { error: uploadError } = await supabase.storage.from('tenant-assets').upload(path, file, { contentType: file.type, upsert: true });
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from('tenant-assets').getPublicUrl(path);
       setUrl(data.publicUrl);
