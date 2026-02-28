@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { RefreshCw, Search, Crown, ShieldOff, CheckCircle } from 'lucide-react';
+import { RefreshCw, Search, Crown, ShieldOff, CheckCircle, Trash2 } from 'lucide-react';
 
 interface TenantRow {
   id: string;
@@ -32,10 +32,11 @@ interface TenantRow {
   subscription_status: string;
   is_active: boolean;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 type ConfirmAction =
-  | { type: 'basic' | 'pro' | 'block'; tenant: TenantRow }
+  | { type: 'basic' | 'pro' | 'block' | 'delete'; tenant: TenantRow }
   | null;
 
 export default function SuperAdminClients() {
@@ -53,7 +54,8 @@ export default function SuperAdminClients() {
     try {
       const { data, error } = await supabase
         .from('tenants')
-        .select('id, name, slug, plan, subscription_status, is_active, updated_at')
+        .select('id, name, slug, plan, subscription_status, is_active, updated_at, deleted_at')
+        .is('deleted_at', null)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
@@ -72,33 +74,54 @@ export default function SuperAdminClients() {
     const { tenant } = action;
     setActionLoading(tenant.id);
 
-    let plan = tenant.plan;
-    let status = tenant.subscription_status;
-
-    if (action.type === 'basic') { plan = 'basic'; status = 'active'; }
-    else if (action.type === 'pro') { plan = 'pro'; status = 'active'; }
-    else if (action.type === 'block') { status = 'inactive'; }
-
     try {
-      // Try RPC first
-      const { error: rpcError } = await supabase.rpc('set_tenant_plan', {
-        p_tenant_id: tenant.id,
-        p_plan: plan,
-        p_status: status,
-      });
-
-      if (rpcError) {
-        // Fallback: direct update
-        const { error: updateError } = await supabase
+      if (action.type === 'delete') {
+        const { error } = await supabase
           .from('tenants')
-          .update({ plan, subscription_status: status, is_active: status === 'active', updated_at: new Date().toISOString() })
+          .update({
+            subscription_status: 'deleted',
+            is_active: false,
+            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', tenant.id);
-        if (updateError) throw updateError;
+        if (error) throw error;
+        toast({ title: 'Cliente excluído', description: `${tenant.name} foi marcado como excluído.` });
+      } else {
+        let plan = tenant.plan;
+        let status = tenant.subscription_status;
+
+        if (action.type === 'basic') { plan = 'basic'; status = 'active'; }
+        else if (action.type === 'pro') { plan = 'pro'; status = 'active'; }
+        else if (action.type === 'block') { status = 'blocked'; }
+
+        // Try RPC first
+        const { error: rpcError } = await supabase.rpc('set_tenant_plan', {
+          p_tenant_id: tenant.id,
+          p_plan: plan,
+          p_status: status,
+        });
+
+        if (rpcError) {
+          // Fallback: direct update
+          const { error: updateError } = await supabase
+            .from('tenants')
+            .update({
+              plan,
+              subscription_status: status,
+              is_active: status === 'active',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', tenant.id);
+          if (updateError) throw updateError;
+        }
+
+        toast({ title: 'Atualizado com sucesso!', description: `${tenant.name} → ${plan.toUpperCase()} / ${status}` });
       }
 
-      toast({ title: 'Atualizado com sucesso!', description: `${tenant.name} → ${plan.toUpperCase()} / ${status}` });
       fetchTenants();
     } catch (err: any) {
+      console.error('Erro ao atualizar tenant:', err);
       toast({ title: 'Erro ao atualizar', description: err.message, variant: 'destructive' });
     } finally {
       setActionLoading(null);
@@ -110,6 +133,7 @@ export default function SuperAdminClients() {
     if (!c) return '';
     if (c.type === 'basic') return `Ativar plano Básico para "${c.tenant.name}"?`;
     if (c.type === 'pro') return `Ativar plano Pro para "${c.tenant.name}"?`;
+    if (c.type === 'delete') return `Excluir "${c.tenant.name}"? O registro será marcado como excluído (exclusão lógica).`;
     return `Bloquear acesso de "${c.tenant.name}"?`;
   };
 
@@ -129,7 +153,9 @@ export default function SuperAdminClients() {
 
   const statusBadge = (status: string) => {
     if (status === 'active') return <Badge className="bg-primary/20 text-primary border-primary/40">Ativo</Badge>;
-    return <Badge variant="destructive">Inativo</Badge>;
+    if (status === 'blocked') return <Badge variant="destructive">Bloqueado</Badge>;
+    if (status === 'cancelled') return <Badge variant="outline" className="text-muted-foreground">Cancelado</Badge>;
+    return <Badge variant="destructive">{status}</Badge>;
   };
 
   return (
@@ -173,7 +199,8 @@ export default function SuperAdminClients() {
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
             <SelectItem value="active">Ativo</SelectItem>
-            <SelectItem value="inactive">Inativo</SelectItem>
+            <SelectItem value="blocked">Bloqueado</SelectItem>
+            <SelectItem value="cancelled">Cancelado</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -232,7 +259,7 @@ export default function SuperAdminClients() {
                         <Button
                           size="sm"
                           disabled={busy}
-          onClick={() => setConfirm({ type: 'pro', tenant: t })}
+                          onClick={() => setConfirm({ type: 'pro', tenant: t })}
                           className="h-7 text-xs gradient-pro text-pro-foreground border-0"
                         >
                           <Crown size={12} className="mr-1" /> Pro
@@ -245,6 +272,15 @@ export default function SuperAdminClients() {
                           className="h-7 text-xs"
                         >
                           <ShieldOff size={12} className="mr-1" /> Bloquear
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={busy}
+                          onClick={() => setConfirm({ type: 'delete', tenant: t })}
+                          className="h-7 text-xs bg-destructive/80 hover:bg-destructive"
+                        >
+                          <Trash2 size={12} className="mr-1" /> Excluir
                         </Button>
                       </div>
                     </td>
