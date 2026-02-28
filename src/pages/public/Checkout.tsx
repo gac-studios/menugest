@@ -29,7 +29,8 @@ export default function Checkout() {
   const [addressError, setAddressError] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; whatsapp_phone?: string | null; plan?: string | null } | null>(null);
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; phone_whatsapp?: string | null; plan?: string | null } | null>(null);
+  const [tenantError, setTenantError] = useState<string | null>(null);
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [sending, setSending] = useState(false);
@@ -54,15 +55,22 @@ export default function Checkout() {
     if (!slug) return;
     supabase
       .from('tenants')
-      .select('id, name, whatsapp_phone, plan')
+      .select('id, name, phone_whatsapp, plan')
       .eq('slug', slug)
       .maybeSingle()
-      .then(async ({ data }) => {
-        if (data) {
-          setTenantData(data);
-          const feats = await fetchPlanFeatures(data.plan || 'none');
-          setPlanFeatures(feats);
+      .then(async ({ data, error }) => {
+        if (error) {
+          console.error('[Checkout] Tenant fetch error:', error);
+          setTenantError('Erro ao carregar dados do restaurante.');
+          return;
         }
+        if (!data) {
+          setTenantError('Restaurante não encontrado. Verifique o link.');
+          return;
+        }
+        setTenantData(data);
+        const feats = await fetchPlanFeatures(data.plan || 'none');
+        setPlanFeatures(feats);
       });
   }, [slug]);
 
@@ -156,7 +164,7 @@ export default function Checkout() {
       } else {
         // --- BASIC/NONE: WhatsApp only, no DB save ---
         const storeName = tenantData.name || 'Restaurante';
-        const storePhone = tenantData.whatsapp_phone || '5500000000000';
+        const storePhone = tenantData.phone_whatsapp || '5500000000000';
 
         const message = buildOrderMessage(
           storeName,
@@ -190,7 +198,22 @@ export default function Checkout() {
     }
   };
 
-  // Success screen (Pro only)
+  // Tenant error screen
+  if (tenantError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="text-center max-w-sm">
+          <span className="text-6xl block mb-4">⚠️</span>
+          <h1 className="text-xl font-bold text-foreground">Erro</h1>
+          <p className="text-muted-foreground mt-2">{tenantError}</p>
+          <Link to={slug ? `/menu/${slug}` : '/'}>
+            <Button className="mt-6 gradient-primary text-primary-foreground border-0">Voltar</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (orderSuccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
