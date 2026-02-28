@@ -29,7 +29,8 @@ export default function Checkout() {
   const [addressError, setAddressError] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; whatsapp_phone?: string | null; plan?: string | null } | null>(null);
+  const [tenantData, setTenantData] = useState<{ id: string; name: string; phone_whatsapp?: string | null; plan?: string | null } | null>(null);
+  const [tenantError, setTenantError] = useState<string | null>(null);
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [sending, setSending] = useState(false);
