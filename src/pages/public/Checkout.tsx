@@ -198,7 +198,22 @@ export default function Checkout() {
     }
   };
 
-  // Success screen (Pro only)
+  // Tenant error screen
+  if (tenantError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="text-center max-w-sm">
+          <span className="text-6xl block mb-4">⚠️</span>
+          <h1 className="text-xl font-bold text-foreground">Erro</h1>
+          <p className="text-muted-foreground mt-2">{tenantError}</p>
+          <Link to={slug ? `/menu/${slug}` : '/'}>
+            <Button className="mt-6 gradient-primary text-primary-foreground border-0">Voltar</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (orderSuccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
