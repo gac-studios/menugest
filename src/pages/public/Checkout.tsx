@@ -164,7 +164,7 @@ export default function Checkout() {
       } else {
         // --- BASIC/NONE: WhatsApp only, no DB save ---
         const storeName = tenantData.name || 'Restaurante';
-        const storePhone = tenantData.whatsapp_phone || '5500000000000';
+        const storePhone = tenantData.phone_whatsapp || '5500000000000';
 
         const message = buildOrderMessage(
           storeName,
