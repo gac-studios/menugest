@@ -55,15 +55,22 @@ export default function Checkout() {
     if (!slug) return;
     supabase
       .from('tenants')
-      .select('id, name, whatsapp_phone, plan')
+      .select('id, name, phone_whatsapp, plan')
       .eq('slug', slug)
       .maybeSingle()
-      .then(async ({ data }) => {
-        if (data) {
-          setTenantData(data);
-          const feats = await fetchPlanFeatures(data.plan || 'none');
-          setPlanFeatures(feats);
+      .then(async ({ data, error }) => {
+        if (error) {
+          console.error('[Checkout] Tenant fetch error:', error);
+          setTenantError('Erro ao carregar dados do restaurante.');
+          return;
         }
+        if (!data) {
+          setTenantError('Restaurante não encontrado. Verifique o link.');
+          return;
+        }
+        setTenantData(data);
+        const feats = await fetchPlanFeatures(data.plan || 'none');
+        setPlanFeatures(feats);
       });
   }, [slug]);
 
