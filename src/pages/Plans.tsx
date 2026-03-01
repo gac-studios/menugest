@@ -53,6 +53,49 @@ const plans = [
 ];
 
 export default function Plans() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { tenant } = useTenant();
+  const { toast } = useToast();
+  const [contracting, setContracting] = useState(false);
+
+  const handleContract = async (planKey: 'basic' | 'pro', planLabel: string) => {
+    setContracting(true);
+    try {
+      // If logged in and has tenant, save request to DB
+      if (user && tenant) {
+        const { error } = await supabase
+          .from('tenants')
+          .update({
+            requested_plan: planKey,
+            subscription_status: 'pending',
+          })
+          .eq('id', tenant.id);
+
+        if (error) {
+          console.error('[Plans] Error saving plan request:', error);
+          toast({
+            title: 'Erro ao registrar solicitação',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
+      }
+
+      // Open WhatsApp
+      const storeName = tenant?.name || 'Meu estabelecimento';
+      const slug = tenant?.slug || '';
+      const msg = `Olá, estou solicitando o plano *${planLabel}* no MenuGest.\n\nEstabelecimento: ${storeName}\nSlug: ${slug}\n\nAguardo instruções de pagamento.`;
+      openWhatsApp(MENUGEST_WHATSAPP, msg);
+
+      // Redirect to pending page if logged in
+      if (user && tenant) {
+        setTimeout(() => navigate('/pending'), 500);
+      }
+    } finally {
+      setContracting(false);
+    }
+  };
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
