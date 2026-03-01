@@ -134,6 +134,7 @@ export default function PersonalizationTab() {
       setButtonPlusColor(tenant.theme_button_plus_color || '#f97316');
       setHeaderColor(tenant.theme_header_color || '#1a1a1a');
       setBgColor(tenant.theme_background_color || tenant.theme_bg_color || '#ffffff');
+      setCardBgColor(tenant.card_background_color || '#ffffff');
       setFont(tenant.theme_font || 'Plus Jakarta Sans');
     }
   }, [tenant]);
