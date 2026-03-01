@@ -239,6 +239,7 @@ export default function PersonalizationTab() {
           buttonPlusColor={buttonPlusColor}
           headerColor={headerColor}
           bgColor={bgColor}
+          cardBgColor={cardBgColor}
           font={font}
         />
       </div>
