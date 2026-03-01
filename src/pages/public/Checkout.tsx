@@ -181,7 +181,7 @@ export default function Checkout() {
           <h1 className="text-xl font-bold text-foreground">Carrinho vazio</h1>
           <p className="text-muted-foreground mt-2">Adicione itens do cardápio</p>
           <Link to={slug ? `/menu/${slug}` : '/'}>
-            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand, var(--gradient-primary))' }}>Ver Cardápio</Button>
+            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}>Ver Cardápio</Button>
           </Link>
         </div>
       </div>
