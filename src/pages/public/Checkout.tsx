@@ -166,7 +166,7 @@ export default function Checkout() {
           <h1 className="text-xl font-bold text-foreground">Pedido finalizado!</h1>
           <p className="text-muted-foreground mt-2">Seu pedido foi registrado com sucesso.</p>
           <Link to={slug ? `/menu/${slug}` : '/'}>
-            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand, var(--gradient-primary))' }}>Voltar ao Cardápio</Button>
+            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}>Voltar ao Cardápio</Button>
           </Link>
         </div>
       </div>
