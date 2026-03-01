@@ -21,6 +21,7 @@ export interface Tenant {
   theme_header_color?: string;
   theme_background_color?: string;
   theme_font?: string;
+  card_background_color?: string;
   business_hours?: Record<string, { open: string; close: string; closed?: boolean }>;
   created_at: string;
 }
