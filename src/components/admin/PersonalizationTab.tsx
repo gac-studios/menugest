@@ -82,7 +82,7 @@ function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, card
           { name: 'X-Burger Especial', price: 'R$ 28,90' },
           { name: 'Batata Frita G', price: 'R$ 16,50' },
         ].map((item, i) => (
-          <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-white/80 border border-black/5">
+          <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg border border-black/5" style={{ backgroundColor: cardBgColor }}>
             <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center text-lg">
               {i === 0 ? '🍔' : '🍟'}
             </div>
