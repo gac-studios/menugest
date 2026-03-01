@@ -183,6 +183,7 @@ export default function PersonalizationTab() {
             buttonPlusColor="#f97316"
             headerColor="#1a1a1a"
             bgColor="#ffffff"
+            cardBgColor="#ffffff"
             font="Plus Jakarta Sans"
           />
         </div>
