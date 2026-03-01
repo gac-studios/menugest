@@ -143,6 +143,7 @@ const App = () => (
               {/* Public landing */}
               <Route path="/" element={<Index />} />
               <Route path="/plans" element={<Plans />} />
+              <Route path="/pending" element={<PendingSubscription />} />
 
               {/* Auth */}
               <Route path="/login" element={<Login />} />
