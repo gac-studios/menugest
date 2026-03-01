@@ -1,7 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Check, X, Crown, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/hooks/useTenant';
+import { supabase } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
+import { MENUGEST_WHATSAPP, openWhatsApp } from '@/lib/whatsapp';
+import { useState } from 'react';
 
 const plans = [
   {
@@ -47,6 +53,49 @@ const plans = [
 ];
 
 export default function Plans() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { tenant } = useTenant();
+  const { toast } = useToast();
+  const [contracting, setContracting] = useState(false);
+
+  const handleContract = async (planKey: 'basic' | 'pro', planLabel: string) => {
+    setContracting(true);
+    try {
+      // If logged in and has tenant, save request to DB
+      if (user && tenant) {
+        const { error } = await supabase
+          .from('tenants')
+          .update({
+            requested_plan: planKey,
+            subscription_status: 'pending',
+          })
+          .eq('id', tenant.id);
+
+        if (error) {
+          console.error('[Plans] Error saving plan request:', error);
+          toast({
+            title: 'Erro ao registrar solicitação',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
+      }
+
+      // Open WhatsApp
+      const storeName = tenant?.name || 'Meu estabelecimento';
+      const slug = tenant?.slug || '';
+      const msg = `Olá, estou solicitando o plano *${planLabel}* no MenuGest.\n\nEstabelecimento: ${storeName}\nSlug: ${slug}\n\nAguardo instruções de pagamento.`;
+      openWhatsApp(MENUGEST_WHATSAPP, msg);
+
+      // Redirect to pending page if logged in
+      if (user && tenant) {
+        setTimeout(() => navigate('/pending'), 500);
+      }
+    } finally {
+      setContracting(false);
+    }
+  };
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
@@ -115,14 +164,14 @@ export default function Plans() {
               <Button
                 className="w-full gradient-primary text-primary-foreground border-0 text-base"
                 size="lg"
+                disabled={contracting}
                 onClick={() => {
-                  const msg = plan.name === 'Pro'
-                    ? 'Olá, quero contratar o plano Pro do MenuCash'
-                    : 'Olá, quero contratar o plano Básico do MenuCash';
-                  window.open(`https://wa.me/553432466279?text=${encodeURIComponent(msg)}`, '_blank');
+                  const key = plan.name === 'Pro' ? 'pro' : 'basic' as const;
+                  const label = plan.name === 'Pro' ? 'Pro (Gestão Completa)' : 'Básico (Menu Digital)';
+                  handleContract(key, label);
                 }}
               >
-                Contratar no WhatsApp
+                {contracting ? 'Processando…' : 'Contratar no WhatsApp'}
               </Button>
             </motion.div>
           ))}

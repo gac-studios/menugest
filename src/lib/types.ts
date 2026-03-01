@@ -24,6 +24,7 @@ export interface Tenant {
   card_background_color?: string;
   price_color?: string;
   button_color?: string;
+  requested_plan?: PlanType;
   business_hours?: Record<string, { open: string; close: string; closed?: boolean }>;
   created_at: string;
 }
