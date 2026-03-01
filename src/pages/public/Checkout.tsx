@@ -209,7 +209,7 @@ export default function Checkout() {
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm text-foreground">{ci.item.name}</h3>
-                  <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--brand, hsl(var(--primary)))' }}>
+                  <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--brand-price, var(--brand, hsl(var(--primary))))' }}>
                     R$ {(ci.item.price * ci.quantity).toFixed(2)}
                   </p>
                 </div>
