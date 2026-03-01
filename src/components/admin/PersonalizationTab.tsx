@@ -206,7 +206,8 @@ export default function PersonalizationTab() {
         <ColorField label="Cor principal (preço, botões)" value={primaryColor} onChange={setPrimaryColor} />
         <ColorField label="Cor do botão +" value={buttonPlusColor} onChange={setButtonPlusColor} />
         <ColorField label="Cor do header" value={headerColor} onChange={setHeaderColor} />
-        <ColorField label="Cor de fundo" value={bgColor} onChange={setBgColor} />
+        <ColorField label="Cor de fundo da página" value={bgColor} onChange={setBgColor} />
+        <ColorField label="Cor de fundo dos cards" value={cardBgColor} onChange={setCardBgColor} />
 
         <div className="space-y-1.5">
           <Label>Fonte do cardápio</Label>
