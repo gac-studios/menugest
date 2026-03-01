@@ -275,7 +275,7 @@ export default function Checkout() {
               {['Pix', 'Dinheiro', 'Crédito', 'Débito'].map(m => (
                 <button key={m} onClick={() => setPaymentMethod(m)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === m ? 'text-white border-transparent' : 'text-foreground border-border'}`}
-                  style={paymentMethod === m ? { background: 'var(--brand, var(--gradient-primary))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
+                  style={paymentMethod === m ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
                   {m}
                 </button>
               ))}
