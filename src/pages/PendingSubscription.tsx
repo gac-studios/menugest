@@ -128,7 +128,7 @@ export default function PendingSubscription() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Status</span>
-                  <span className="font-semibold text-yellow-600">Pendente</span>
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">Pendente</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Suporte</span>
