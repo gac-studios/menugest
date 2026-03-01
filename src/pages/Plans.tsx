@@ -1,7 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Check, X, Crown, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/hooks/useTenant';
+import { supabase } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
+import { MENUGEST_WHATSAPP, openWhatsApp } from '@/lib/whatsapp';
+import { useState } from 'react';
 
 const plans = [
   {
