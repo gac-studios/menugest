@@ -124,6 +124,7 @@ export default function PersonalizationTab() {
   const [buttonPlusColor, setButtonPlusColor] = useState('#f97316');
   const [headerColor, setHeaderColor] = useState('#1a1a1a');
   const [bgColor, setBgColor] = useState('#ffffff');
+  const [cardBgColor, setCardBgColor] = useState('#ffffff');
   const [font, setFont] = useState('Plus Jakarta Sans');
   const [saving, setSaving] = useState(false);
 
