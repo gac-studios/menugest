@@ -110,7 +110,7 @@ export default function PublicMenu() {
             className={`brand-chip px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               !activeCategory ? 'brand-chip-active' : 'bg-card text-foreground border border-border'
             }`}
-            style={!activeCategory ? { background: 'var(--brand, var(--gradient-primary))', color: '#fff' } : undefined}
+            style={!activeCategory ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))', color: '#fff' } : undefined}
           >
             Todos
           </button>
