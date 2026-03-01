@@ -58,6 +58,7 @@ interface PreviewProps {
   buttonPlusColor: string;
   headerColor: string;
   bgColor: string;
+  cardBgColor: string;
   font: string;
 }
 
