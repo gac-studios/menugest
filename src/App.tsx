@@ -35,6 +35,7 @@ import SuperAdminClients from "./pages/admin/SuperAdminClients";
 import PlanFeaturesPage from "./pages/admin/PlanFeaturesPage";
 import PublicMenu from "./pages/public/PublicMenu";
 import Checkout from "./pages/public/Checkout";
+import PublicLayout from "./components/public/PublicLayout";
 
 const queryClient = new QueryClient();
 
