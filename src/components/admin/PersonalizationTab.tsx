@@ -62,7 +62,7 @@ interface PreviewProps {
   font: string;
 }
 
-function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, font }: PreviewProps) {
+function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, cardBgColor, font }: PreviewProps) {
   return (
     <div
       className="rounded-xl border border-border overflow-hidden shadow-card"
