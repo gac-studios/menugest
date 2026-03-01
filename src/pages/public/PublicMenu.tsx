@@ -203,7 +203,7 @@ export default function PublicMenu() {
               <Button
                 className="w-full text-white border-0 h-14 text-base"
                 size="lg"
-                style={{ background: 'var(--brand, var(--gradient-primary))' }}
+                style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}
               >
                 <ShoppingCart size={20} className="mr-2" />
                 Ver carrinho ({itemCount}) — R$ {total.toFixed(2)}

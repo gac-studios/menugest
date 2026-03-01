@@ -298,7 +298,7 @@ export default function Checkout() {
           </div>
           <Button onClick={handleSubmitOrder} disabled={sending || !tenantData}
             className="w-full h-14 text-base text-white border-0" size="lg"
-            style={{ background: 'var(--brand, var(--gradient-primary))' }}>
+            style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}>
             <ShoppingBag size={20} className="mr-2" />
             {sending ? 'Finalizando...' : 'Finalizar pedido'}
           </Button>
