@@ -1,62 +1,45 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import { Search, ShoppingCart, UtensilsCrossed, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MenuCard from '@/components/public/MenuCard';
 import { useCart } from '@/contexts/CartContext';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { MenuItem, MenuCategory as MenuCategoryType, Promotion } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
+import { usePublicTenant } from '@/contexts/PublicTenantContext';
 
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
-  const [tenantData, setTenantData] = useState<{
-    id: string; name: string; logo_url?: string | null; cover_url?: string | null;
-    theme_bg_color?: string | null; theme_primary_color?: string | null;
-    theme_button_plus_color?: string | null; theme_header_color?: string | null;
-    theme_background_color?: string | null; theme_font?: string | null;
-    is_active: boolean;
-  } | null>(null);
+  const { tenant: tenantData } = usePublicTenant();
+
   const [categories, setCategories] = useState<MenuCategoryType[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [activePromos, setActivePromos] = useState<Promotion[]>([]);
-  const [loadingTenant, setLoadingTenant] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const { itemCount, total } = useCart();
 
   useEffect(() => {
-    const loadTenant = async () => {
-      if (!slug) { setNotFound(true); setLoadingTenant(false); return; }
-      // Persist slug so legacy /checkout can redirect correctly
-      localStorage.setItem('last_menu_slug', slug);
-      const { data: t } = await supabase
-        .from('tenants')
-        .select('id, name, logo_url, cover_url, theme_bg_color, theme_primary_color, theme_button_plus_color, theme_header_color, theme_background_color, theme_font, is_active')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (!t || !t.is_active) { setNotFound(true); setLoadingTenant(false); return; }
-      setTenantData(t);
-
+    if (!tenantData?.id) return;
+    const loadData = async () => {
       const now = new Date().toISOString();
       const [catRes, itemsRes, promosRes] = await Promise.all([
-        supabase.from('menu_categories').select('*').eq('tenant_id', t.id).eq('is_active', true).order('sort_order'),
-        supabase.from('menu_items').select('*').eq('tenant_id', t.id).eq('is_available', true).order('sort_order'),
-        supabase.from('promotions').select('*').eq('tenant_id', t.id).eq('is_active', true)
+        supabase.from('menu_categories').select('*').eq('tenant_id', tenantData.id).eq('is_active', true).order('sort_order'),
+        supabase.from('menu_items').select('*').eq('tenant_id', tenantData.id).eq('is_available', true).order('sort_order'),
+        supabase.from('promotions').select('*').eq('tenant_id', tenantData.id).eq('is_active', true)
           .or(`starts_at.is.null,starts_at.lte.${now}`)
           .or(`ends_at.is.null,ends_at.gte.${now}`),
       ]);
       setCategories(catRes.data || []);
       setMenuItems(itemsRes.data || []);
       setActivePromos(promosRes.data || []);
-      setLoadingTenant(false);
+      setLoadingData(false);
     };
-    loadTenant();
-  }, [slug]);
+    loadData();
+  }, [tenantData?.id]);
 
   const itemPromotions = useMemo(() => menuItems.filter(i => i.is_promotion && i.is_available), [menuItems]);
   const filtered = useMemo(() => {
@@ -66,19 +49,9 @@ export default function PublicMenu() {
     return items.filter(i => !i.is_promotion || !activeCategory);
   }, [search, activeCategory, menuItems]);
 
-  if (loadingTenant) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+  if (loadingData) return (
+    <div className="flex items-center justify-center py-20">
       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-
-  if (notFound) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-foreground mb-2">404</h1>
-        <p className="text-muted-foreground">Cardápio não encontrado</p>
-        <Link to="/" className="text-primary mt-4 inline-block hover:underline">Voltar ao início</Link>
-      </div>
     </div>
   );
 
@@ -86,40 +59,19 @@ export default function PublicMenu() {
   const logoUrl = tenantData?.logo_url || null;
   const coverUrl = tenantData?.cover_url || null;
 
-  const themeBg = tenantData?.theme_background_color || tenantData?.theme_bg_color || '#ffffff';
-  const themePrimary = tenantData?.theme_primary_color || undefined;
-  const themeButtonPlus = tenantData?.theme_button_plus_color || undefined;
-  const themeHeader = tenantData?.theme_header_color || undefined;
-  const themeFont = tenantData?.theme_font || undefined;
-
-  const fontImport = themeFont && themeFont !== 'Plus Jakarta Sans'
-    ? `https://fonts.googleapis.com/css2?family=${themeFont.replace(/ /g, '+')}:wght@400;500;600;700&display=swap`
-    : null;
-
   return (
-    <div
-      className="min-h-screen pb-24"
-      style={{
-        backgroundColor: themeBg,
-        fontFamily: themeFont ? `'${themeFont}', sans-serif` : undefined,
-      }}
-    >
-      {fontImport && <link rel="stylesheet" href={fontImport} />}
+    <div className="pb-24">
       {/* Cover Banner */}
       {coverUrl && (
         <div className="w-full h-[220px] overflow-hidden relative">
-          <img
-            src={coverUrl}
-            alt={`Capa de ${tenantName}`}
-            className="w-full h-full object-cover"
-          />
+          <img src={coverUrl} alt={`Capa de ${tenantName}`} className="w-full h-full object-cover" />
         </div>
       )}
 
       {/* Header */}
       <div className="text-primary-foreground px-4 pt-6 pb-6 relative">
         <div className={`max-w-lg mx-auto relative z-10 ${!coverUrl ? 'rounded-xl p-4' : ''}`}
-          style={!coverUrl ? { background: themeHeader || 'var(--gradient-hero)' } : undefined}
+          style={!coverUrl ? { background: 'var(--brand-header, var(--gradient-hero))' } : undefined}
         >
           <div className="flex items-center gap-3 mb-4"
             style={coverUrl ? { color: 'var(--foreground)' } : undefined}
@@ -155,10 +107,10 @@ export default function PublicMenu() {
         <div className="flex gap-2 overflow-x-auto py-4 -mx-4 px-4 scrollbar-hide">
           <button
             onClick={() => setActiveCategory(null)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              !activeCategory ? `text-white ${!themePrimary ? 'gradient-primary' : ''}` : 'bg-card text-foreground border border-border'
+            className={`brand-chip px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              !activeCategory ? 'brand-chip-active' : 'bg-card text-foreground border border-border'
             }`}
-            style={!activeCategory && themePrimary ? { background: themePrimary } : undefined}
+            style={!activeCategory ? { background: 'var(--brand, var(--gradient-primary))', color: '#fff' } : undefined}
           >
             Todos
           </button>
@@ -167,27 +119,27 @@ export default function PublicMenu() {
               key={c.id}
               onClick={() => setActiveCategory(c.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeCategory === c.id ? `text-white ${!themePrimary ? 'gradient-primary' : ''}` : 'bg-card text-foreground border border-border'
+                activeCategory === c.id ? '' : 'bg-card text-foreground border border-border'
               }`}
-              style={activeCategory === c.id && themePrimary ? { background: themePrimary } : undefined}
+              style={activeCategory === c.id ? { background: 'var(--brand, var(--gradient-primary))', color: '#fff' } : undefined}
             >
               {c.name}
             </button>
           ))}
         </div>
 
-        {/* Campaign Promotions (from promotions table) */}
+        {/* Campaign Promotions */}
         {!activeCategory && !search && activePromos.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
-              🔥 Promoções
-            </h2>
+            <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">🔥 Promoções</h2>
             <div className="space-y-2">
               {activePromos.map(promo => (
                 <motion.div key={promo.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                  <div className="flex items-start gap-3 p-4 bg-card rounded-xl border border-border/50 shadow-card">
-                    <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center shrink-0 mt-0.5">
-                      <Tag size={16} className="text-primary-foreground" />
+                  <div className="flex items-start gap-3 p-4 rounded-xl border border-border/50 shadow-card"
+                    style={{ backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                      style={{ background: 'var(--brand, var(--gradient-primary))' }}>
+                      <Tag size={16} className="text-white" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">{promo.title}</h3>
@@ -200,7 +152,7 @@ export default function PublicMenu() {
           </div>
         )}
 
-        {/* Item Promotions (menu_items with is_promotion=true) */}
+        {/* Item Promotions */}
         {!activeCategory && !search && itemPromotions.length > 0 && (
           <div className="mb-6">
             {activePromos.length === 0 && (
@@ -209,7 +161,7 @@ export default function PublicMenu() {
             <div className="space-y-2">
               {itemPromotions.map(item => (
                 <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                  <MenuCard item={item} themePrimary={themePrimary} themeButtonPlus={themeButtonPlus} />
+                  <MenuCard item={item} />
                 </motion.div>
               ))}
             </div>
@@ -225,14 +177,14 @@ export default function PublicMenu() {
               <h2 className="text-lg font-bold text-foreground mb-3">{cat.name}</h2>
               <div className="space-y-2">
                 {catItems.map(item => (
-                  <MenuCard key={item.id} item={item} themePrimary={themePrimary} themeButtonPlus={themeButtonPlus} />
+                  <MenuCard key={item.id} item={item} />
                 ))}
               </div>
             </div>
           );
         })}
 
-        {/* Watermark for basic plan */}
+        {/* Watermark */}
         <div className="text-center py-8">
           <p className="text-xs text-muted-foreground/50">Cardápio digital por MenuGest</p>
         </div>
@@ -243,11 +195,16 @@ export default function PublicMenu() {
         <motion.div
           initial={{ y: 100 }}
           animate={{ y: 0 }}
-          className="fixed bottom-0 inset-x-0 p-4 bg-background/80 backdrop-blur-lg border-t border-border"
+          className="fixed bottom-0 inset-x-0 p-4 backdrop-blur-lg border-t border-border"
+          style={{ backgroundColor: 'var(--brand-page-bg, hsl(var(--background) / 0.8))' }}
         >
           <div className="max-w-lg mx-auto">
             <Link to={`/menu/${slug}/checkout`}>
-              <Button className={`w-full text-white border-0 h-14 text-base ${!themePrimary ? 'gradient-primary' : ''}`} size="lg" style={themePrimary ? { background: themePrimary } : undefined}>
+              <Button
+                className="w-full text-white border-0 h-14 text-base"
+                size="lg"
+                style={{ background: 'var(--brand, var(--gradient-primary))' }}
+              >
                 <ShoppingCart size={20} className="mr-2" />
                 Ver carrinho ({itemCount}) — R$ {total.toFixed(2)}
               </Button>

@@ -35,6 +35,7 @@ import SuperAdminClients from "./pages/admin/SuperAdminClients";
 import PlanFeaturesPage from "./pages/admin/PlanFeaturesPage";
 import PublicMenu from "./pages/public/PublicMenu";
 import Checkout from "./pages/public/Checkout";
+import PublicLayout from "./components/public/PublicLayout";
 
 const queryClient = new QueryClient();
 
@@ -183,9 +184,11 @@ const App = () => (
                 <Route path="/superadmin/plan-features" element={<SuperAdminRoute><PlanFeaturesPage /></SuperAdminRoute>} />
               </Route>
 
-              {/* Public menu (tenant slug) */}
-              <Route path="/menu/:slug/checkout" element={<Checkout />} />
-              <Route path="/menu/:slug" element={<PublicMenu />} />
+              {/* Public menu (tenant slug) — wrapped in PublicLayout for shared theme */}
+              <Route path="/menu/:slug" element={<PublicLayout />}>
+                <Route index element={<PublicMenu />} />
+                <Route path="checkout" element={<Checkout />} />
+              </Route>
               <Route path="/menu" element={<PublicMenu />} />
               {/* Legacy /checkout redirect */}
               <Route path="/checkout" element={<CheckoutRedirect />} />

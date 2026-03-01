@@ -58,10 +58,11 @@ interface PreviewProps {
   buttonPlusColor: string;
   headerColor: string;
   bgColor: string;
+  cardBgColor: string;
   font: string;
 }
 
-function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, font }: PreviewProps) {
+function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, cardBgColor, font }: PreviewProps) {
   return (
     <div
       className="rounded-xl border border-border overflow-hidden shadow-card"
@@ -81,7 +82,7 @@ function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, font
           { name: 'X-Burger Especial', price: 'R$ 28,90' },
           { name: 'Batata Frita G', price: 'R$ 16,50' },
         ].map((item, i) => (
-          <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-white/80 border border-black/5">
+          <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg border border-black/5" style={{ backgroundColor: cardBgColor }}>
             <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center text-lg">
               {i === 0 ? '🍔' : '🍟'}
             </div>
@@ -123,6 +124,7 @@ export default function PersonalizationTab() {
   const [buttonPlusColor, setButtonPlusColor] = useState('#f97316');
   const [headerColor, setHeaderColor] = useState('#1a1a1a');
   const [bgColor, setBgColor] = useState('#ffffff');
+  const [cardBgColor, setCardBgColor] = useState('#ffffff');
   const [font, setFont] = useState('Plus Jakarta Sans');
   const [saving, setSaving] = useState(false);
 
@@ -132,6 +134,7 @@ export default function PersonalizationTab() {
       setButtonPlusColor(tenant.theme_button_plus_color || '#f97316');
       setHeaderColor(tenant.theme_header_color || '#1a1a1a');
       setBgColor(tenant.theme_background_color || tenant.theme_bg_color || '#ffffff');
+      setCardBgColor(tenant.card_background_color || '#ffffff');
       setFont(tenant.theme_font || 'Plus Jakarta Sans');
     }
   }, [tenant]);
@@ -144,6 +147,7 @@ export default function PersonalizationTab() {
       theme_button_plus_color: buttonPlusColor,
       theme_header_color: headerColor,
       theme_background_color: bgColor,
+      card_background_color: cardBgColor,
       theme_font: font,
     }).eq('id', tenant.id);
     if (error) {
@@ -179,6 +183,7 @@ export default function PersonalizationTab() {
             buttonPlusColor="#f97316"
             headerColor="#1a1a1a"
             bgColor="#ffffff"
+            cardBgColor="#ffffff"
             font="Plus Jakarta Sans"
           />
         </div>
@@ -201,7 +206,8 @@ export default function PersonalizationTab() {
         <ColorField label="Cor principal (preço, botões)" value={primaryColor} onChange={setPrimaryColor} />
         <ColorField label="Cor do botão +" value={buttonPlusColor} onChange={setButtonPlusColor} />
         <ColorField label="Cor do header" value={headerColor} onChange={setHeaderColor} />
-        <ColorField label="Cor de fundo" value={bgColor} onChange={setBgColor} />
+        <ColorField label="Cor de fundo da página" value={bgColor} onChange={setBgColor} />
+        <ColorField label="Cor de fundo dos cards" value={cardBgColor} onChange={setCardBgColor} />
 
         <div className="space-y-1.5">
           <Label>Fonte do cardápio</Label>
@@ -233,6 +239,7 @@ export default function PersonalizationTab() {
           buttonPlusColor={buttonPlusColor}
           headerColor={headerColor}
           bgColor={bgColor}
+          cardBgColor={cardBgColor}
           font={font}
         />
       </div>

@@ -10,6 +10,7 @@ import { buildOrderMessage, openWhatsApp } from '@/lib/whatsapp';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { fetchPlanFeatures, type PlanFeatures } from '@/hooks/usePlanFeatures';
+import { usePublicTenant } from '@/contexts/PublicTenantContext';
 
 const paymentMethodMap: Record<string, string> = {
   Pix: 'pix',
@@ -20,6 +21,7 @@ const paymentMethodMap: Record<string, string> = {
 
 export default function Checkout() {
   const { slug } = useParams<{ slug: string }>();
+  const { tenant: tenantData } = usePublicTenant();
   const { items, updateQuantity, updateObservation, removeItem, clearCart, total, itemCount } = useCart();
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -29,8 +31,6 @@ export default function Checkout() {
   const [addressError, setAddressError] = useState('');
   const [generalNote, setGeneralNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [tenantData, setTenantData] = useState<{ id: string; name: string; phone_whatsapp?: string | null; plan?: string | null } | null>(null);
-  const [tenantError, setTenantError] = useState<string | null>(null);
   const [planFeatures, setPlanFeatures] = useState<PlanFeatures | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [sending, setSending] = useState(false);
@@ -50,29 +50,10 @@ export default function Checkout() {
     if (phoneError) setPhoneError('');
   };
 
-  // Always fetch fresh tenant data by slug (no stale cache)
   useEffect(() => {
-    if (!slug) return;
-    supabase
-      .from('tenants')
-      .select('id, name, phone_whatsapp, plan')
-      .eq('slug', slug)
-      .maybeSingle()
-      .then(async ({ data, error }) => {
-        if (error) {
-          console.error('[Checkout] Tenant fetch error:', error);
-          setTenantError('Erro ao carregar dados do restaurante.');
-          return;
-        }
-        if (!data) {
-          setTenantError('Restaurante não encontrado. Verifique o link.');
-          return;
-        }
-        setTenantData(data);
-        const feats = await fetchPlanFeatures(data.plan || 'none');
-        setPlanFeatures(feats);
-      });
-  }, [slug]);
+    if (!tenantData?.plan) return;
+    fetchPlanFeatures(tenantData.plan || 'none').then(setPlanFeatures);
+  }, [tenantData?.plan]);
 
   const useInternalOrders = planFeatures?.orders_internal === true;
 
@@ -86,14 +67,12 @@ export default function Checkout() {
       return;
     }
 
-    // Validate phone
     const digits = customerPhone.replace(/\D/g, '');
     if (digits.length < 10) {
       setPhoneError('Informe um telefone válido com DDD');
       return;
     }
 
-    // Validate address for delivery
     if (orderType === 'entrega' && !address.trim()) {
       setAddressError('Informe o endereço de entrega');
       return;
@@ -102,8 +81,6 @@ export default function Checkout() {
     setSending(true);
     try {
       if (useInternalOrders) {
-        // --- PRO: save internally, no WhatsApp ---
-        // STEP 1: Create a NEW sale record — never reuse any previous sale_id
         const dbPayment = paymentMethodMap[paymentMethod] || paymentMethod.toLowerCase() || 'dinheiro';
         const salePayload = {
           tenant_id: tenantData.id,
@@ -117,7 +94,6 @@ export default function Checkout() {
           notes: generalNote || null,
           sold_at: new Date().toISOString(),
         };
-        console.log('[Checkout] Inserting NEW sale:', JSON.stringify(salePayload));
 
         const { data: newSale, error: saleError } = await supabase
           .from('sales')
@@ -125,30 +101,22 @@ export default function Checkout() {
           .select('id')
           .single();
 
-        if (saleError || !newSale || !newSale.id) {
+        if (saleError || !newSale?.id) {
           console.error('[Checkout] Sale insert FAILED:', saleError);
           const msg = saleError?.message || 'Erro desconhecido';
-          const title = msg.includes('policy') || msg.includes('permission')
-            ? 'Sem permissão para criar pedido'
-            : 'Erro ao registrar pedido';
-          toast({ title, description: msg, variant: 'destructive' });
+          toast({ title: msg.includes('policy') ? 'Sem permissão para criar pedido' : 'Erro ao registrar pedido', description: msg, variant: 'destructive' });
           setSending(false);
           return;
         }
 
-        const createdSaleId: string = newSale.id;
-        console.log('[Checkout] Sale created with id:', createdSaleId);
-
-        // STEP 2: Insert sale_items linked to the NEWLY created sale.id
         const saleItems = items.map(ci => ({
           tenant_id: tenantData.id,
-          sale_id: createdSaleId,
+          sale_id: newSale.id,
           menu_item_id: ci.item.id,
           qty: ci.quantity,
           unit_price: ci.item.price,
           subtotal: parseFloat((ci.item.price * ci.quantity).toFixed(2)),
         }));
-        console.log('[Checkout] Inserting sale_items for sale_id:', createdSaleId, saleItems.length, 'items');
 
         const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
         if (itemsError) {
@@ -158,31 +126,21 @@ export default function Checkout() {
           return;
         }
 
-        console.log('[Checkout] Order completed successfully. sale_id:', createdSaleId);
         clearCart();
         setOrderSuccess(true);
       } else {
-        // --- BASIC/NONE: WhatsApp only, no DB save ---
         const storeName = tenantData.name || 'Restaurante';
         const storePhone = tenantData.phone_whatsapp || '5500000000000';
 
         const message = buildOrderMessage(
-          storeName,
-          items,
-          customerName || undefined,
-          orderType,
+          storeName, items, customerName || undefined, orderType,
           orderType === 'entrega' ? address || undefined : undefined,
-          generalNote || undefined,
-          customerPhone,
-          paymentMethod || undefined,
+          generalNote || undefined, customerPhone, paymentMethod || undefined,
         );
 
         toast({ title: 'Abrindo WhatsApp...' });
-
-        try {
-          openWhatsApp(storePhone, message);
-        } catch {
-          toast({ title: 'Erro ao abrir WhatsApp', description: 'Não foi possível abrir o WhatsApp. Tente novamente.', variant: 'destructive' });
+        try { openWhatsApp(storePhone, message); } catch {
+          toast({ title: 'Erro ao abrir WhatsApp', description: 'Não foi possível abrir o WhatsApp.', variant: 'destructive' });
           setSending(false);
           return;
         }
@@ -198,33 +156,17 @@ export default function Checkout() {
     }
   };
 
-  // Tenant error screen
-  if (tenantError) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
-        <div className="text-center max-w-sm">
-          <span className="text-6xl block mb-4">⚠️</span>
-          <h1 className="text-xl font-bold text-foreground">Erro</h1>
-          <p className="text-muted-foreground mt-2">{tenantError}</p>
-          <Link to={slug ? `/menu/${slug}` : '/'}>
-            <Button className="mt-6 gradient-primary text-primary-foreground border-0">Voltar</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   if (orderSuccess) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <div className="flex items-center justify-center p-8 min-h-[60vh]">
         <div className="text-center max-w-sm">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-green-600" />
           </div>
           <h1 className="text-xl font-bold text-foreground">Pedido finalizado!</h1>
-          <p className="text-muted-foreground mt-2">Seu pedido foi registrado com sucesso. Acompanhe o status diretamente com o restaurante.</p>
+          <p className="text-muted-foreground mt-2">Seu pedido foi registrado com sucesso.</p>
           <Link to={slug ? `/menu/${slug}` : '/'}>
-            <Button className="mt-6 gradient-primary text-primary-foreground border-0">Voltar ao Cardápio</Button>
+            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand, var(--gradient-primary))' }}>Voltar ao Cardápio</Button>
           </Link>
         </div>
       </div>
@@ -233,13 +175,13 @@ export default function Checkout() {
 
   if (itemCount === 0) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <div className="flex items-center justify-center p-8 min-h-[60vh]">
         <div className="text-center">
           <span className="text-6xl block mb-4">🛒</span>
           <h1 className="text-xl font-bold text-foreground">Carrinho vazio</h1>
           <p className="text-muted-foreground mt-2">Adicione itens do cardápio</p>
           <Link to={slug ? `/menu/${slug}` : '/'}>
-            <Button className="mt-6 gradient-primary text-primary-foreground border-0">Ver Cardápio</Button>
+            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand, var(--gradient-primary))' }}>Ver Cardápio</Button>
           </Link>
         </div>
       </div>
@@ -247,9 +189,10 @@ export default function Checkout() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-32">
+    <div className="pb-32">
       {/* Header */}
-      <div className="sticky top-0 bg-card/90 backdrop-blur-lg border-b border-border z-10">
+      <div className="sticky top-0 backdrop-blur-lg border-b border-border z-10"
+        style={{ backgroundColor: 'var(--brand-card-bg, hsl(var(--card) / 0.9))' }}>
         <div className="max-w-lg mx-auto flex items-center gap-3 px-4 h-14">
           <Link to={slug ? `/menu/${slug}` : '/'} className="text-foreground"><ArrowLeft size={20} /></Link>
           <h1 className="text-lg font-bold text-foreground">Finalizar Pedido</h1>
@@ -261,18 +204,23 @@ export default function Checkout() {
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">Seus itens</h2>
           {items.map(ci => (
-            <div key={ci.item.id} className="bg-card rounded-xl p-4 border border-border/50 shadow-card">
+            <div key={ci.item.id} className="rounded-xl p-4 border border-border/50 shadow-card"
+              style={{ backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm text-foreground">{ci.item.name}</h3>
-                  <p className="text-sm text-primary font-medium mt-0.5">R$ {(ci.item.price * ci.quantity).toFixed(2)}</p>
+                  <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--brand, hsl(var(--primary)))' }}>
+                    R$ {(ci.item.price * ci.quantity).toFixed(2)}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => updateQuantity(ci.item.id, ci.quantity - 1)} className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
                     <Minus size={14} />
                   </button>
                   <span className="text-sm font-semibold w-5 text-center">{ci.quantity}</span>
-                  <button onClick={() => updateQuantity(ci.item.id, ci.quantity + 1)} className="w-7 h-7 rounded-full gradient-primary flex items-center justify-center text-primary-foreground">
+                  <button onClick={() => updateQuantity(ci.item.id, ci.quantity + 1)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white"
+                    style={{ background: 'var(--brand-button-plus, var(--brand, var(--gradient-primary)))' }}>
                     <Plus size={14} />
                   </button>
                   <button onClick={() => removeItem(ci.item.id)} className="w-7 h-7 rounded-full flex items-center justify-center text-destructive hover:bg-destructive/10">
@@ -281,12 +229,7 @@ export default function Checkout() {
                 </div>
               </div>
               <div className="mt-2">
-                <Input
-                  value={ci.observation || ''}
-                  onChange={e => updateObservation(ci.item.id, e.target.value)}
-                  placeholder="Observação do item (opcional)"
-                  className="text-xs h-8"
-                />
+                <Input value={ci.observation || ''} onChange={e => updateObservation(ci.item.id, e.target.value)} placeholder="Observação do item (opcional)" className="text-xs h-8" />
               </div>
             </div>
           ))}
@@ -301,53 +244,38 @@ export default function Checkout() {
           </div>
           <div>
             <Label className="text-xs">Telefone <span className="text-destructive">*</span></Label>
-            <Input
-              type="tel"
-              value={customerPhone}
-              onChange={handlePhoneChange}
-              placeholder="(00) 00000-0000"
-              className={`mt-1 ${phoneError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
-            />
+            <Input type="tel" value={customerPhone} onChange={handlePhoneChange} placeholder="(00) 00000-0000"
+              className={`mt-1 ${phoneError ? 'border-destructive focus-visible:ring-destructive' : ''}`} />
             {phoneError && <p className="text-xs text-destructive mt-1">{phoneError}</p>}
           </div>
           <div>
             <Label className="text-xs">Tipo do pedido</Label>
             <div className="flex gap-2 mt-1">
-              <button
-                onClick={() => { setOrderType('retirada'); setAddressError(''); }}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${orderType === 'retirada' ? 'gradient-primary text-primary-foreground border-transparent' : 'bg-card text-foreground border-border'}`}
-              >
-                Retirada
-              </button>
-              <button
-                onClick={() => setOrderType('entrega')}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${orderType === 'entrega' ? 'gradient-primary text-primary-foreground border-transparent' : 'bg-card text-foreground border-border'}`}
-              >
-                Entrega
-              </button>
+              {(['retirada', 'entrega'] as const).map(type => (
+                <button key={type} onClick={() => { setOrderType(type); if (type === 'retirada') setAddressError(''); }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${orderType === type ? 'text-white border-transparent' : 'text-foreground border-border'}`}
+                  style={orderType === type ? { background: 'var(--brand, var(--gradient-primary))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
+                  {type === 'retirada' ? 'Retirada' : 'Entrega'}
+                </button>
+              ))}
             </div>
           </div>
           {orderType === 'entrega' && (
             <div>
               <Label className="text-xs">Endereço de entrega <span className="text-destructive">*</span></Label>
-              <Input
-                value={address}
-                onChange={e => { setAddress(e.target.value); if (addressError) setAddressError(''); }}
+              <Input value={address} onChange={e => { setAddress(e.target.value); if (addressError) setAddressError(''); }}
                 placeholder="Rua, número, bairro"
-                className={`mt-1 ${addressError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
-              />
+                className={`mt-1 ${addressError ? 'border-destructive focus-visible:ring-destructive' : ''}`} />
               {addressError && <p className="text-xs text-destructive mt-1">{addressError}</p>}
             </div>
           )}
           <div>
             <Label className="text-xs">Forma de pagamento</Label>
             <div className="flex flex-wrap gap-2 mt-1">
-              {['Pix', 'Dinheiro', 'Crédito', 'Débito'].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setPaymentMethod(m)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === m ? 'gradient-primary text-primary-foreground border-transparent' : 'bg-card text-foreground border-border'}`}
-                >
+              {['Pix', 'Dinheiro', 'Crédito', 'Débito'].map(m => (
+                <button key={m} onClick={() => setPaymentMethod(m)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === m ? 'text-white border-transparent' : 'text-foreground border-border'}`}
+                  style={paymentMethod === m ? { background: 'var(--brand, var(--gradient-primary))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
                   {m}
                 </button>
               ))}
@@ -361,13 +289,16 @@ export default function Checkout() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 inset-x-0 bg-card/90 backdrop-blur-lg border-t border-border p-4">
+      <div className="fixed bottom-0 inset-x-0 backdrop-blur-lg border-t border-border p-4"
+        style={{ backgroundColor: 'var(--brand-card-bg, hsl(var(--card) / 0.9))' }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-muted-foreground">{itemCount} {itemCount === 1 ? 'item' : 'itens'}</span>
             <span className="text-lg font-bold text-foreground">R$ {total.toFixed(2)}</span>
           </div>
-          <Button onClick={handleSubmitOrder} disabled={sending} className="w-full h-14 text-base gradient-primary text-primary-foreground border-0" size="lg">
+          <Button onClick={handleSubmitOrder} disabled={sending || !tenantData}
+            className="w-full h-14 text-base text-white border-0" size="lg"
+            style={{ background: 'var(--brand, var(--gradient-primary))' }}>
             <ShoppingBag size={20} className="mr-2" />
             {sending ? 'Finalizando...' : 'Finalizar pedido'}
           </Button>
