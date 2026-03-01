@@ -254,7 +254,7 @@ export default function Checkout() {
               {(['retirada', 'entrega'] as const).map(type => (
                 <button key={type} onClick={() => { setOrderType(type); if (type === 'retirada') setAddressError(''); }}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${orderType === type ? 'text-white border-transparent' : 'text-foreground border-border'}`}
-                  style={orderType === type ? { background: 'var(--brand, var(--gradient-primary))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
+                  style={orderType === type ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
                   {type === 'retirada' ? 'Retirada' : 'Entrega'}
                 </button>
               ))}
