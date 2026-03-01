@@ -220,7 +220,7 @@ export default function Checkout() {
                   <span className="text-sm font-semibold w-5 text-center">{ci.quantity}</span>
                   <button onClick={() => updateQuantity(ci.item.id, ci.quantity + 1)}
                     className="w-7 h-7 rounded-full flex items-center justify-center text-white"
-                    style={{ background: 'var(--brand-button-plus, var(--brand, var(--gradient-primary)))' }}>
+                    style={{ background: 'var(--brand-button-plus, var(--brand-button, var(--brand, var(--gradient-primary))))' }}>
                     <Plus size={14} />
                   </button>
                   <button onClick={() => removeItem(ci.item.id)} className="w-7 h-7 rounded-full flex items-center justify-center text-destructive hover:bg-destructive/10">
