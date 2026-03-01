@@ -14,6 +14,8 @@ function PublicLayoutInner() {
     const pageBg = tenant.theme_background_color || tenant.theme_bg_color || '';
     const cardBg = tenant.card_background_color || '';
     const font = tenant.theme_font || '';
+    const priceColor = tenant.price_color || primary || '';
+    const buttonColor = tenant.button_color || primary || '';
 
     const vars: Record<string, string> = {};
     if (primary) vars['--brand'] = primary;
@@ -22,6 +24,8 @@ function PublicLayoutInner() {
     if (pageBg) vars['--brand-page-bg'] = pageBg;
     if (cardBg) vars['--brand-card-bg'] = cardBg;
     if (font) vars['--brand-font'] = `'${font}', sans-serif`;
+    if (priceColor) vars['--brand-price'] = priceColor;
+    if (buttonColor) vars['--brand-button'] = buttonColor;
 
     return vars;
   }, [tenant]);

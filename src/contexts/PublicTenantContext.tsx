@@ -20,6 +20,8 @@ export interface PublicTenantData {
   theme_bg_color?: string | null;
   theme_font?: string | null;
   card_background_color?: string | null;
+  price_color?: string | null;
+  button_color?: string | null;
 }
 
 interface PublicTenantContextValue {

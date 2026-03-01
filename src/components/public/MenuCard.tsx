@@ -73,7 +73,7 @@ export default function MenuCard({ item, compact }: MenuCardProps) {
             <button
               onClick={() => addItem(item)}
               className="w-7 h-7 rounded-full flex items-center justify-center text-white"
-              style={{ background: 'var(--brand-button-plus, var(--brand, var(--gradient-primary)))' }}
+              style={{ background: 'var(--brand-button-plus, var(--brand-button, var(--brand, var(--gradient-primary))))' }}
             >
               <Plus size={14} />
             </button>
