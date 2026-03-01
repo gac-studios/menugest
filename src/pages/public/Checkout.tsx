@@ -166,7 +166,7 @@ export default function Checkout() {
           <h1 className="text-xl font-bold text-foreground">Pedido finalizado!</h1>
           <p className="text-muted-foreground mt-2">Seu pedido foi registrado com sucesso.</p>
           <Link to={slug ? `/menu/${slug}` : '/'}>
-            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand, var(--gradient-primary))' }}>Voltar ao Cardápio</Button>
+            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}>Voltar ao Cardápio</Button>
           </Link>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function Checkout() {
           <h1 className="text-xl font-bold text-foreground">Carrinho vazio</h1>
           <p className="text-muted-foreground mt-2">Adicione itens do cardápio</p>
           <Link to={slug ? `/menu/${slug}` : '/'}>
-            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand, var(--gradient-primary))' }}>Ver Cardápio</Button>
+            <Button className="mt-6 text-white border-0" style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}>Ver Cardápio</Button>
           </Link>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function Checkout() {
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm text-foreground">{ci.item.name}</h3>
-                  <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--brand, hsl(var(--primary)))' }}>
+                  <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--brand-price, var(--brand, hsl(var(--primary))))' }}>
                     R$ {(ci.item.price * ci.quantity).toFixed(2)}
                   </p>
                 </div>
@@ -220,7 +220,7 @@ export default function Checkout() {
                   <span className="text-sm font-semibold w-5 text-center">{ci.quantity}</span>
                   <button onClick={() => updateQuantity(ci.item.id, ci.quantity + 1)}
                     className="w-7 h-7 rounded-full flex items-center justify-center text-white"
-                    style={{ background: 'var(--brand-button-plus, var(--brand, var(--gradient-primary)))' }}>
+                    style={{ background: 'var(--brand-button-plus, var(--brand-button, var(--brand, var(--gradient-primary))))' }}>
                     <Plus size={14} />
                   </button>
                   <button onClick={() => removeItem(ci.item.id)} className="w-7 h-7 rounded-full flex items-center justify-center text-destructive hover:bg-destructive/10">
@@ -254,7 +254,7 @@ export default function Checkout() {
               {(['retirada', 'entrega'] as const).map(type => (
                 <button key={type} onClick={() => { setOrderType(type); if (type === 'retirada') setAddressError(''); }}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${orderType === type ? 'text-white border-transparent' : 'text-foreground border-border'}`}
-                  style={orderType === type ? { background: 'var(--brand, var(--gradient-primary))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
+                  style={orderType === type ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
                   {type === 'retirada' ? 'Retirada' : 'Entrega'}
                 </button>
               ))}
@@ -275,7 +275,7 @@ export default function Checkout() {
               {['Pix', 'Dinheiro', 'Crédito', 'Débito'].map(m => (
                 <button key={m} onClick={() => setPaymentMethod(m)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${paymentMethod === m ? 'text-white border-transparent' : 'text-foreground border-border'}`}
-                  style={paymentMethod === m ? { background: 'var(--brand, var(--gradient-primary))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
+                  style={paymentMethod === m ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' } : { backgroundColor: 'var(--brand-card-bg, hsl(var(--card)))' }}>
                   {m}
                 </button>
               ))}
@@ -298,7 +298,7 @@ export default function Checkout() {
           </div>
           <Button onClick={handleSubmitOrder} disabled={sending || !tenantData}
             className="w-full h-14 text-base text-white border-0" size="lg"
-            style={{ background: 'var(--brand, var(--gradient-primary))' }}>
+            style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}>
             <ShoppingBag size={20} className="mr-2" />
             {sending ? 'Finalizando...' : 'Finalizar pedido'}
           </Button>

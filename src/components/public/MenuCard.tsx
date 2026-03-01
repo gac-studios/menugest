@@ -54,7 +54,7 @@ export default function MenuCard({ item, compact }: MenuCardProps) {
         )}
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-baseline gap-1.5">
-            <span className="font-bold" style={{ color: 'var(--brand, hsl(var(--primary)))' }}>
+            <span className="font-bold" style={{ color: 'var(--brand-price, var(--brand, hsl(var(--primary))))' }}>
               R$ {item.price.toFixed(2)}
             </span>
             {item.original_price && item.original_price > item.price && (
@@ -73,7 +73,7 @@ export default function MenuCard({ item, compact }: MenuCardProps) {
             <button
               onClick={() => addItem(item)}
               className="w-7 h-7 rounded-full flex items-center justify-center text-white"
-              style={{ background: 'var(--brand-button-plus, var(--brand, var(--gradient-primary)))' }}
+              style={{ background: 'var(--brand-button-plus, var(--brand-button, var(--brand, var(--gradient-primary))))' }}
             >
               <Plus size={14} />
             </button>

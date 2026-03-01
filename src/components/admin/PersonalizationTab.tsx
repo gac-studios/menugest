@@ -3,11 +3,22 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Lock, Palette, Plus, ShoppingCart } from 'lucide-react';
+import { Loader2, Lock, Palette, Plus, ShoppingCart, RotateCcw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/hooks/useTenant';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 const FONT_OPTIONS = [
   { value: 'Plus Jakarta Sans', label: 'Plus Jakarta Sans' },
@@ -16,6 +27,17 @@ const FONT_OPTIONS = [
   { value: 'Montserrat', label: 'Montserrat' },
   { value: 'Roboto', label: 'Roboto' },
 ];
+
+const DEFAULTS = {
+  primaryColor: '#f97316',
+  priceColor: '#f97316',
+  buttonColor: '#f97316',
+  buttonPlusColor: '#f97316',
+  headerColor: '#1a1a1a',
+  bgColor: '#ffffff',
+  cardBgColor: '#ffffff',
+  font: 'Plus Jakarta Sans',
+};
 
 interface ColorFieldProps {
   label: string;
@@ -55,6 +77,8 @@ function ColorField({ label, value, onChange, disabled }: ColorFieldProps) {
 // ─── Live Preview ──────────────────────────────────────────────────────────────
 interface PreviewProps {
   primaryColor: string;
+  priceColor: string;
+  buttonColor: string;
   buttonPlusColor: string;
   headerColor: string;
   bgColor: string;
@@ -62,7 +86,7 @@ interface PreviewProps {
   font: string;
 }
 
-function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, cardBgColor, font }: PreviewProps) {
+function MenuPreview({ priceColor, buttonColor, buttonPlusColor, headerColor, bgColor, cardBgColor, font }: PreviewProps) {
   return (
     <div
       className="rounded-xl border border-border overflow-hidden shadow-card"
@@ -88,7 +112,7 @@ function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, card
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold" style={{ color: '#1a1a1a' }}>{item.name}</p>
-              <p className="text-xs font-bold mt-0.5" style={{ color: primaryColor }}>{item.price}</p>
+              <p className="text-xs font-bold mt-0.5" style={{ color: priceColor }}>{item.price}</p>
             </div>
             <button
               className="w-7 h-7 rounded-full flex items-center justify-center text-white"
@@ -104,7 +128,7 @@ function MenuPreview({ primaryColor, buttonPlusColor, headerColor, bgColor, card
       <div className="px-3 pb-3">
         <div
           className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-white text-xs font-semibold"
-          style={{ backgroundColor: primaryColor }}
+          style={{ backgroundColor: buttonColor }}
         >
           <ShoppingCart size={14} />
           Ver carrinho (2) — R$ 45,40
@@ -120,43 +144,77 @@ export default function PersonalizationTab() {
   const { toast } = useToast();
   const isPro = tenant?.plan === 'pro';
 
-  const [primaryColor, setPrimaryColor] = useState('#f97316');
-  const [buttonPlusColor, setButtonPlusColor] = useState('#f97316');
-  const [headerColor, setHeaderColor] = useState('#1a1a1a');
-  const [bgColor, setBgColor] = useState('#ffffff');
-  const [cardBgColor, setCardBgColor] = useState('#ffffff');
-  const [font, setFont] = useState('Plus Jakarta Sans');
+  const [primaryColor, setPrimaryColor] = useState(DEFAULTS.primaryColor);
+  const [priceColor, setPriceColor] = useState(DEFAULTS.priceColor);
+  const [buttonColor, setButtonColor] = useState(DEFAULTS.buttonColor);
+  const [buttonPlusColor, setButtonPlusColor] = useState(DEFAULTS.buttonPlusColor);
+  const [headerColor, setHeaderColor] = useState(DEFAULTS.headerColor);
+  const [bgColor, setBgColor] = useState(DEFAULTS.bgColor);
+  const [cardBgColor, setCardBgColor] = useState(DEFAULTS.cardBgColor);
+  const [font, setFont] = useState(DEFAULTS.font);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (tenant) {
-      setPrimaryColor(tenant.theme_primary_color || '#f97316');
-      setButtonPlusColor(tenant.theme_button_plus_color || '#f97316');
-      setHeaderColor(tenant.theme_header_color || '#1a1a1a');
-      setBgColor(tenant.theme_background_color || tenant.theme_bg_color || '#ffffff');
-      setCardBgColor(tenant.card_background_color || '#ffffff');
-      setFont(tenant.theme_font || 'Plus Jakarta Sans');
+      const primary = tenant.theme_primary_color || DEFAULTS.primaryColor;
+      setPrimaryColor(primary);
+      setPriceColor(tenant.price_color || primary);
+      setButtonColor(tenant.button_color || primary);
+      setButtonPlusColor(tenant.theme_button_plus_color || primary);
+      setHeaderColor(tenant.theme_header_color || DEFAULTS.headerColor);
+      setBgColor(tenant.theme_background_color || tenant.theme_bg_color || DEFAULTS.bgColor);
+      setCardBgColor(tenant.card_background_color || DEFAULTS.cardBgColor);
+      setFont(tenant.theme_font || DEFAULTS.font);
     }
   }, [tenant]);
 
-  const save = async () => {
+  const save = async (overrides?: Record<string, string>) => {
     if (!tenant?.id) return;
     setSaving(true);
-    const { error } = await supabase.from('tenants').update({
+    const payload = overrides || {
       theme_primary_color: primaryColor,
+      price_color: priceColor,
+      button_color: buttonColor,
       theme_button_plus_color: buttonPlusColor,
       theme_header_color: headerColor,
       theme_background_color: bgColor,
       card_background_color: cardBgColor,
       theme_font: font,
-    }).eq('id', tenant.id);
+    };
+    const { error } = await supabase.from('tenants').update(payload).eq('id', tenant.id);
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Personalização salva!' });
+      toast({ title: overrides ? 'Tema resetado para o padrão!' : 'Personalização salva!' });
       await refetch();
     }
     setSaving(false);
+  };
+
+  const handleReset = async () => {
+    setPrimaryColor(DEFAULTS.primaryColor);
+    setPriceColor(DEFAULTS.priceColor);
+    setButtonColor(DEFAULTS.buttonColor);
+    setButtonPlusColor(DEFAULTS.buttonPlusColor);
+    setHeaderColor(DEFAULTS.headerColor);
+    setBgColor(DEFAULTS.bgColor);
+    setCardBgColor(DEFAULTS.cardBgColor);
+    setFont(DEFAULTS.font);
+
+    await save({
+      theme_primary_color: DEFAULTS.primaryColor,
+      price_color: DEFAULTS.priceColor,
+      button_color: DEFAULTS.buttonColor,
+      theme_button_plus_color: DEFAULTS.buttonPlusColor,
+      theme_header_color: DEFAULTS.headerColor,
+      theme_background_color: DEFAULTS.bgColor,
+      card_background_color: DEFAULTS.cardBgColor,
+      theme_font: DEFAULTS.font,
+    });
+  };
+
+  const previewProps: PreviewProps = {
+    primaryColor, priceColor, buttonColor, buttonPlusColor, headerColor, bgColor, cardBgColor, font,
   };
 
   if (!isPro) {
@@ -178,14 +236,7 @@ export default function PersonalizationTab() {
         {/* Disabled preview */}
         <div className="mt-6 opacity-50 pointer-events-none select-none">
           <p className="text-xs text-muted-foreground mb-2 font-medium">Prévia (bloqueada)</p>
-          <MenuPreview
-            primaryColor="#f97316"
-            buttonPlusColor="#f97316"
-            headerColor="#1a1a1a"
-            bgColor="#ffffff"
-            cardBgColor="#ffffff"
-            font="Plus Jakarta Sans"
-          />
+          <MenuPreview {...{ ...DEFAULTS, primaryColor: DEFAULTS.primaryColor, priceColor: DEFAULTS.priceColor, buttonColor: DEFAULTS.buttonColor, buttonPlusColor: DEFAULTS.buttonPlusColor, headerColor: DEFAULTS.headerColor, bgColor: DEFAULTS.bgColor, cardBgColor: DEFAULTS.cardBgColor }} />
         </div>
       </div>
     );
@@ -203,7 +254,9 @@ export default function PersonalizationTab() {
           <p className="text-sm text-muted-foreground mt-1">Configure as cores e fonte do seu cardápio</p>
         </div>
 
-        <ColorField label="Cor principal (preço, botões)" value={primaryColor} onChange={setPrimaryColor} />
+        <ColorField label="Cor principal (fallback geral)" value={primaryColor} onChange={setPrimaryColor} />
+        <ColorField label="Cor do preço" value={priceColor} onChange={setPriceColor} />
+        <ColorField label="Cor dos botões (ações, chips, finalizar)" value={buttonColor} onChange={setButtonColor} />
         <ColorField label="Cor do botão +" value={buttonPlusColor} onChange={setButtonPlusColor} />
         <ColorField label="Cor do header" value={headerColor} onChange={setHeaderColor} />
         <ColorField label="Cor de fundo da página" value={bgColor} onChange={setBgColor} />
@@ -225,23 +278,39 @@ export default function PersonalizationTab() {
           </Select>
         </div>
 
-        <Button className="gradient-primary text-primary-foreground border-0 w-full" onClick={save} disabled={saving}>
-          {saving && <Loader2 size={16} className="animate-spin mr-2" />}
-          {saving ? 'Salvando...' : 'Salvar personalização'}
-        </Button>
+        <div className="flex gap-3">
+          <Button className="gradient-primary text-primary-foreground border-0 flex-1" onClick={() => save()} disabled={saving}>
+            {saving && <Loader2 size={16} className="animate-spin mr-2" />}
+            {saving ? 'Salvando...' : 'Salvar personalização'}
+          </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" disabled={saving} className="gap-2">
+                <RotateCcw size={16} />
+                Resetar padrão
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Resetar tema para o padrão?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Todas as cores e a fonte serão restauradas para o tema padrão do MenuGest (laranja). Esta ação será salva imediatamente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleReset}>Resetar</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       {/* Live Preview */}
       <div className="space-y-2">
         <p className="text-sm font-medium text-muted-foreground">Prévia em tempo real</p>
-        <MenuPreview
-          primaryColor={primaryColor}
-          buttonPlusColor={buttonPlusColor}
-          headerColor={headerColor}
-          bgColor={bgColor}
-          cardBgColor={cardBgColor}
-          font={font}
-        />
+        <MenuPreview {...previewProps} />
       </div>
     </div>
   );

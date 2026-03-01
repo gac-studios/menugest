@@ -110,7 +110,7 @@ export default function PublicMenu() {
             className={`brand-chip px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               !activeCategory ? 'brand-chip-active' : 'bg-card text-foreground border border-border'
             }`}
-            style={!activeCategory ? { background: 'var(--brand, var(--gradient-primary))', color: '#fff' } : undefined}
+            style={!activeCategory ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))', color: '#fff' } : undefined}
           >
             Todos
           </button>
@@ -121,7 +121,7 @@ export default function PublicMenu() {
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                 activeCategory === c.id ? '' : 'bg-card text-foreground border border-border'
               }`}
-              style={activeCategory === c.id ? { background: 'var(--brand, var(--gradient-primary))', color: '#fff' } : undefined}
+              style={activeCategory === c.id ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))', color: '#fff' } : undefined}
             >
               {c.name}
             </button>
@@ -203,7 +203,7 @@ export default function PublicMenu() {
               <Button
                 className="w-full text-white border-0 h-14 text-base"
                 size="lg"
-                style={{ background: 'var(--brand, var(--gradient-primary))' }}
+                style={{ background: 'var(--brand-button, var(--brand, var(--gradient-primary)))' }}
               >
                 <ShoppingCart size={20} className="mr-2" />
                 Ver carrinho ({itemCount}) — R$ {total.toFixed(2)}
