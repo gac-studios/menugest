@@ -164,14 +164,14 @@ export default function Plans() {
               <Button
                 className="w-full gradient-primary text-primary-foreground border-0 text-base"
                 size="lg"
+                disabled={contracting}
                 onClick={() => {
-                  const msg = plan.name === 'Pro'
-                    ? 'Olá, quero contratar o plano Pro do MenuCash'
-                    : 'Olá, quero contratar o plano Básico do MenuCash';
-                  window.open(`https://wa.me/553432466279?text=${encodeURIComponent(msg)}`, '_blank');
+                  const key = plan.name === 'Pro' ? 'pro' : 'basic' as const;
+                  const label = plan.name === 'Pro' ? 'Pro (Gestão Completa)' : 'Básico (Menu Digital)';
+                  handleContract(key, label);
                 }}
               >
-                Contratar no WhatsApp
+                {contracting ? 'Processando…' : 'Contratar no WhatsApp'}
               </Button>
             </motion.div>
           ))}

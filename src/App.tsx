@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 // Pages
 import Index from "./pages/Index";
 import Plans from "./pages/Plans";
+import PendingSubscription from "./pages/PendingSubscription";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
