@@ -147,6 +147,7 @@ export default function PersonalizationTab() {
       theme_button_plus_color: buttonPlusColor,
       theme_header_color: headerColor,
       theme_background_color: bgColor,
+      card_background_color: cardBgColor,
       theme_font: font,
     }).eq('id', tenant.id);
     if (error) {
