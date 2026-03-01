@@ -121,7 +121,7 @@ export default function PublicMenu() {
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                 activeCategory === c.id ? '' : 'bg-card text-foreground border border-border'
               }`}
-              style={activeCategory === c.id ? { background: 'var(--brand, var(--gradient-primary))', color: '#fff' } : undefined}
+              style={activeCategory === c.id ? { background: 'var(--brand-button, var(--brand, var(--gradient-primary)))', color: '#fff' } : undefined}
             >
               {c.name}
             </button>
