@@ -230,6 +230,51 @@ export default function Index() {
         </div>
       </section>
 
+      {/* Depoimentos */}
+      <section className="py-20 bg-background">
+        <div className="container mx-auto px-4">
+          <motion.div variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true }} className="text-center mb-16">
+            <h2 className="text-3xl lg:text-4xl font-bold text-foreground">O que nossos clientes dizem</h2>
+            <p className="mt-4 text-muted-foreground text-lg">Experiências reais de quem usa o MenuGest</p>
+          </motion.div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {[
+              { name: 'Carlos Silva', biz: 'Burger House', text: 'Desde que comecei a usar o MenuGest, meus pedidos ficaram muito mais organizados. Os clientes adoram o cardápio digital!', stars: 5, avatar: 'CS' },
+              { name: 'Ana Oliveira', biz: 'Pizzaria Bella', text: 'Simples de configurar e meus clientes pedem direto pelo WhatsApp. Reduzi erros de pedido em 80%.', stars: 5, avatar: 'AO' },
+              { name: 'Rafael Costa', biz: 'Açaí do Rafa', text: 'O plano Pro me deu controle total do estoque e das vendas. Recomendo para qualquer negócio de alimentação.', stars: 5, avatar: 'RC' },
+              { name: 'Juliana Mendes', biz: 'Food Truck JM', text: 'Perfeito pro meu food truck! Cardápio bonito, rápido e sem precisar de app. Meus clientes amaram.', stars: 4, avatar: 'JM' },
+              { name: 'Pedro Santos', biz: 'Lanchonete Central', text: 'Atendimento excelente pelo WhatsApp e o sistema é muito fácil de usar. Valeu cada centavo.', stars: 5, avatar: 'PS' },
+              { name: 'Mariana Lima', biz: 'Restaurante Sabor', text: 'A personalização do cardápio com as cores da minha marca fez toda a diferença. Ficou profissional!', stars: 5, avatar: 'ML' },
+            ].map((t, i) => (
+              <motion.div
+                key={t.name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="p-6 rounded-2xl bg-card border border-border/50 shadow-card hover:shadow-elevated transition-shadow flex flex-col"
+              >
+                <div className="flex gap-1 mb-3">
+                  {Array.from({ length: 5 }).map((_, s) => (
+                    <svg key={s} className={`w-4 h-4 ${s < t.stars ? 'text-amber-400' : 'text-muted-foreground/30'}`} fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <p className="text-foreground/80 text-sm flex-1 mb-4">"{t.text}"</p>
+                <div className="flex items-center gap-3 pt-3 border-t border-border/50">
+                  <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold">{t.avatar}</div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{t.name}</p>
+                    <p className="text-xs text-muted-foreground">{t.biz}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Autoridade */}
       <section className="py-16 bg-secondary/50">
         <div className="container mx-auto px-4">
